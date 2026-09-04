@@ -4,13 +4,19 @@ Denne fila er **kilden** til de faglige reglene. Den leses av appen ved oppstart
 (`app/server/prompt.ts`) og importeres av `CLAUDE.md` for bruk i Claude Code.
 Endrer du en regel her, gjelder den begge steder. Ikke dupliser reglene andre steder.
 
+**Ikke skriv tall her.** Antall sider, dataprodukter, kolonner og dekningsår endrer seg hver
+gang et snapshot oppdateres, og de oppgis allerede dynamisk i systemprompten. Et tall skrevet
+inn her blir feil, og et feil tall er verre enn ingen: modellen bruker det til å avgjøre om et
+søketreff kan stoles på.
+
 ## GRUNNLAGET – DATAPRODUKTER ER UTGANGSPUNKTET
 
 1. Start i wikiens dataproduktbeskrivelser (`Dataprodukter-i-Stat19/`). Dette er hovedkilden til
    hva et dataprodukt er, hvilken periode det dekker og hvilke begrensninger som gjelder.
 2. Gå deretter til dbt for de faktiske navnene. Dataproduktene ligger under `sources`
-   (`source.fida.<register>.<tabell>`) – 45 produkter fordelt på 15 registre. Det er disse
-   teamene bestiller fra, og det er disse navnene som skal brukes.
+   (`source.fida.<register>.<tabell>`). Det er disse teamene bestiller fra, og det er disse
+   navnene som skal brukes. Den fullstendige lista over hvilke som finnes får du oppgitt
+   direkte — ikke gjett, og ikke gå etter et antall du har sett før.
 3. dbt `nodes` (`model.fida.<produkt>_<team>`) er team-views – det det enkelte teamet har fått
    tilpasset. De er bevisst holdt utenfor og skal ikke foreslås eller nevnes som dataprodukt.
    Trenger du å vite hva et bestemt team faktisk har tilgang til, står det i teamets protokoll
@@ -73,9 +79,9 @@ wikien eller dbt. Legg fram forslaget, merk det som forslag, og be om retting.
 ## DATOER OG DEKNING – IKKE DIKT OPP
 
 - Dekningsperioder (hvilke år et dataprodukt har data for) står som regel IKKE i
-  dbt-metadataene. De finnes på kildesidene i wikien (f.eks. SykehusEPJ fra 2020), eller i
-  `Logg.AntallRaderLastet` i databasen. Oppgi kilden til datoen, eller si at den må sjekkes.
-  Aldri dikt opp en dekningsperiode.
+  dbt-metadataene. De finnes på kildesidene i wikien, eller i `Logg.AntallRaderLastet` i
+  databasen. Les dem av kildesiden hver gang – også når du mener du vet svaret. Oppgi kilden
+  til datoen, eller si at den må sjekkes. Aldri dikt opp en dekningsperiode.
 - Variabelnavn: verifiser i dbt-metadataene. Finnes de ikke der, si at navnene er uverifiserte.
 - Dikt aldri opp DevOps-numre, datoer, godkjenninger, navn eller kodelister. Skriv `[TBD]` og spør.
 
