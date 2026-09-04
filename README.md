@@ -37,11 +37,12 @@ keeping them in a shared folder, is covered in **[SNAPSHOTS.md](SNAPSHOTS.md)**.
 ## 3. Run the app
 
 ```bash
-cd app && npm run dev      # or double-click start.command / start.bat
+node start.mjs             # or double-click start.command (macOS) / start.bat (Windows)
 ```
 
-Opens at **http://localhost:5178** — chat on the left, wiki and dataprodukt panels on the right.
-Use it when you want to check an answer: click a source link and read the page behind it.
+Opens at **http://localhost:5178** once the server is ready — chat on the left, wiki and
+dataprodukt panels on the right. Ctrl+C stops it. Use it when you want to check an answer: click
+a source link and read the page behind it.
 
 ## 4. Run the CLI
 

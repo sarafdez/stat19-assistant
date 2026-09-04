@@ -9,7 +9,10 @@ For setup and how to obtain the two snapshots, see [`../README.md`](../README.md
 ## Running
 
 First time: `node setup.mjs` in the folder above (installs, fetches wiki and dbt, writes `.env`).
-Then double-click `start.command` (macOS) / `start.bat` (Windows), or from a terminal:
+Then `node start.mjs` from the repo root — it runs setup if needed, starts both servers, waits for
+the client to answer before opening a browser, and shuts the whole tree down on Ctrl+C.
+`start.command` (macOS) and `start.bat` (Windows) are double-click wrappers around it. Or run the
+servers directly:
 
 ```bash
 cd app

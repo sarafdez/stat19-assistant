@@ -60,6 +60,7 @@ Metadata only, no person-level data. Everything can then be read and tested loca
 | `app/` | the local web app (see `app/README.md`); system prompt in `app/server/prompt.ts` |
 | `setup.mjs` | one-command setup: deps, wiki clone/pull, dbt download, `.env` |
 | `stat19` / `stat19.bat` | CLI launcher — `./stat19 --protocol "tema" --save` |
+| `start.mjs` | cross-platform app launcher; `start.command`/`start.bat` just call it |
 | `README.md` / `SNAPSHOTS.md` | user-facing docs, in English — setup and how to obtain the two snapshots |
 | `prosjekter/` | working files — protocol drafts land here |
 | `Stat19.wiki/` | the wiki clone (git-ignored, fetched by setup) |
@@ -88,8 +89,9 @@ Don't add absolute local paths to committed files (use the `STAT19_*_DIR` overri
 
 Lokal app i `app/` — chat til venstre, wiki-panel og dbt-panel til høyre.
 
-Start: `node setup.mjs` én gang, deretter dobbeltklikk `start.command` (macOS) / `start.bat`
-(Windows), eller `cd app && npm run dev` (klient :5178, API :5179).
+Start: `node setup.mjs` én gang, deretter `node start.mjs` (eller dobbeltklikk `start.command` på
+macOS / `start.bat` på Windows – begge er tynne wrappere rundt den). `cd app && npm run dev`
+kjører serverne direkte (klient :5178, API :5179).
 
 - Modell og grundighet velges i topplinja: Opus 5 / Sonnet 5 / Haiku 4.5, effort lav/middels/høy.
 - React + TypeScript + Vite + Tailwind; Express-backend som kaller valgt modell med seks
