@@ -57,6 +57,19 @@ function anthropic(): Anthropic {
 
 function tools(emit: ChatSink) {
   /**
+   * Counted from the loaded snapshot, never written by hand. Hardcoded totals went stale the
+   * first time the dbt export was refreshed (45 products became 53, 1354 columns became 2286),
+   * and a tool description that misstates how much is undocumented actively misleads the model.
+   */
+  const columns = listDbtSources().flatMap((source) => source.columns);
+  const counts = {
+    pages: listWikiPages().length,
+    products: listDbtSources().length,
+    columns: columns.length,
+    undocumented: columns.filter((column) => !column.description).length,
+  };
+
+  /**
    * Offer the source as a link in the chat. The panels do not follow along on their own —
    * the user clicks the link when they want to see the page.
    */
@@ -66,7 +79,7 @@ function tools(emit: ChatSink) {
   const searchWikiTool = betaZodTool({
     name: "search_wiki",
     description:
-      "Fritekstsøk i Stat19-wikien (172 sider). Bruk section='Dataprodukter' når du leter etter " +
+      `Fritekstsøk i Stat19-wikien (${counts.pages} sider). Bruk section='Dataprodukter' når du leter etter ` +
       "dataprodukter, dekningsperioder eller begrensninger for en kilde – det er hovedkilden til " +
       "beskrivelser. Uten section søkes hele wikien (juridisk, prosess, protokoller).",
     inputSchema: z.object({
@@ -171,10 +184,10 @@ function tools(emit: ChatSink) {
       "(source.fida.<register>.<tabell>) – altså dataproduktene teamene bestiller fra. dbt `nodes` " +
       "(model.fida.*_<team>, dvs. team-views med det enkelte teamet allerede har fått) er bevisst " +
       "utelatt og skal ikke brukes. Bruk dette for å FINNE dataproduktet – ikke for å avgjøre hvilke " +
-      "variabler det har. 590 av 1354 kolonner mangler beskrivelse i dbt, så søket ser bare " +
-      "kolonnenavnet: variabler med kryptiske navn (f.eks. ansienDato for ansiennitetsdato) blir " +
-      "ikke funnet av et søk på «ventetid». Har du funnet dataproduktet, kall get_dbt_source og " +
-      "les hele kolonnelista før du sier at en variabel ikke finnes.",
+      `variabler det har. ${counts.undocumented} av ${counts.columns} kolonner mangler beskrivelse i dbt, ` +
+      "så søket ser bare kolonnenavnet: variabler med kryptiske navn (f.eks. ansienDato for " +
+      "ansiennitetsdato) blir ikke funnet av et søk på «ventetid». Har du funnet dataproduktet, kall " +
+      "get_dbt_source og les hele kolonnelista før du sier at en variabel ikke finnes.",
     inputSchema: z.object({
       query: z.string().describe("Søkeord, f.eks. 'ventetid', 'fnr_hash', 'sykehusepj'"),
       limit: z.number().int().min(1).max(20).optional(),
@@ -188,7 +201,7 @@ function tools(emit: ChatSink) {
         return result.verdict === "empty-query"
           ? `Søket «${query}» inneholdt bare vanlige ord (${result.dropped.join(", ")}) – bruk et faglig søkeord.`
           : `Ingen treff i dbt-metadata for «${query}». Ingen dataproduktnavn, kolonnenavn eller ` +
-              `kolonnebeskrivelse inneholder ordet. Merk at 590 av 1354 kolonner mangler beskrivelse i dbt, ` +
+              `kolonnebeskrivelse inneholder ordet. Merk at ${counts.undocumented} av ${counts.columns} kolonner mangler beskrivelse i dbt, ` +
               `så et søk kan bomme selv om variabelen finnes: hent hele kolonnelista med get_dbt_source ` +
               `for det dataproduktet du tror det gjelder, før du konkluderer med at variabelen ikke finnes.`;
       }
@@ -233,8 +246,8 @@ function tools(emit: ChatSink) {
         ...source.columns.map(
           (c) =>
             `- ${c.name}${c.codeName ? ` (dbt: ${c.codeName})` : ""}${c.type ? ` [${c.type}]` : ""}` +
-            // An undescribed column must not look like one you failed to look up. 590 of 1354
-            // columns have no dbt description, so silence here is the normal case, not a miss.
+            // An undescribed column must not look like one you failed to look up: most columns
+            // have no dbt description, so silence here is the normal case, not a miss.
             `${c.description ? ` – ${c.description}` : " – [udokumentert i dbt]"}`,
         ),
         "",
@@ -275,7 +288,7 @@ function tools(emit: ChatSink) {
 
   const listDbtSourcesTool = betaZodTool({
     name: "list_dbt_sources",
-    description: "List alle 45 dataproduktene (dbt sources) med antall kolonner, gruppert per register.",
+    description: `List alle ${counts.products} dataproduktene (dbt sources) med antall kolonner, gruppert per register.`,
     inputSchema: z.object({}),
     run: async () => {
       emit({ type: "tool", tool: "list_dbt_sources", query: "alle dataprodukter" });

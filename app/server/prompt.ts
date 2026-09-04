@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { RULES_FILE } from "./paths.ts";
 import { listDbtSources } from "./sources/dbt.ts";
+import { listWikiPages } from "./sources/wiki.ts";
 import type { SnapshotStatus } from "./status.ts";
 
 /**
@@ -26,11 +27,15 @@ STIL
   gjentar det du nettopp skrev.
 
 VERKTØY (reglene under GRUNNLAGET sier hva du skal slå opp; dette er hvordan)
-- Wiki: search_wiki (section='Dataprodukter' for kildesidene) og read_wiki_page. Send alltid med
-  query til read_wiki_page – store sider kommer som utdrag, og query velger avsnittene. Mangler du
-  noe, kall igjen med sections=['nr']; full=true bare når du faktisk trenger hele siden.
+- Wiki: du har hele sidelista under ALLE WIKI-SIDER. Vet du hvilken side du trenger – f.eks.
+  kildesiden til et dataprodukt, Juridisk, eller en bestemt Team-protokoll – kall read_wiki_page
+  direkte med id-en derfra. Bruk search_wiki når du ikke vet hvilken side det er, eller når du
+  leter etter et ord på tvers av sider (section='Dataprodukter' avgrenser til kildesidene).
+  Send alltid med query til read_wiki_page – store sider kommer som utdrag, og query velger
+  avsnittene. Mangler du noe, kall igjen med sections=['nr']; full=true bare når du faktisk
+  trenger hele siden.
 - dbt: search_dbt finner dataproduktet; get_dbt_source gir hele kolonnelista. Søket ser bare
-  kolonnenavn og de beskrivelsene som finnes (590 av 1354 kolonner er udokumentert i dbt), så et
+  kolonnenavn og de beskrivelsene som finnes (de fleste kolonner er udokumentert i dbt), så et
   søk på «ventetid» finner ikke ansienDato. Har du funnet dataproduktet, hent kolonnelista med
   get_dbt_source før du oppgir variabelnavn eller sier at en variabel ikke finnes. Begge dekker
   kun 'sources' – team-views er utelatt.
@@ -78,6 +83,29 @@ export function rulesStatus(): { ok: boolean; error: string | null; chars: numbe
   }
 }
 
+/**
+ * The full list of wiki pages, so the model can go straight to read_wiki_page instead of
+ * discovering pages by search. The dbt half has always had its catalogue here; the wiki did
+ * not, which is why wiki lookups depended entirely on ranking — and why a protocol page that
+ * merely repeats a term could outrank the source page that documents it.
+ *
+ * Regenerated on every request from the loaded snapshot, so a wiki pull shows up immediately.
+ * Ids only: they are readable, and they are what read_wiki_page needs. Adding titles as well
+ * would roughly double the cost for very little the id does not already say.
+ */
+function wikiIndex(): string {
+  const pages = listWikiPages();
+  if (!pages.length) return "Ingen wiki-sider er lastet — si at wiki-klonen mangler.";
+  const bySection = new Map<string, string[]>();
+  for (const page of pages) {
+    const section = page.breadcrumb[0] ?? "(rot)";
+    bySection.set(section, [...(bySection.get(section) ?? []), page.id]);
+  }
+  return [...bySection.entries()]
+    .map(([section, ids]) => `${section}:\n  ${ids.join("\n  ")}`)
+    .join("\n");
+}
+
 /** Compact catalogue so the model knows what exists before it starts searching. */
 function dbtCatalogue(): string {
   const sources = listDbtSources();
@@ -107,7 +135,15 @@ export function buildSystem(status: SnapshotStatus): Array<{
     { type: "text", text: `${APP_RULES}\n\n${readDomainRules()}` },
     {
       type: "text",
+      text:
+        `ALLE WIKI-SIDER (${listWikiPages().length} sider i snapshotet). Vet du hvilken side du ` +
+        `trenger, kall read_wiki_page direkte med id-en herfra – du behøver ikke søke først. ` +
+        `search_wiki er for når du IKKE vet hvilken side det er.\n${wikiIndex()}`,
+    },
+    {
+      type: "text",
       text: `TILGJENGELIGE DATAPRODUKTER (dbt 'sources' – det som kan bestilles)\n${dbtCatalogue()}`,
+      // Cache breakpoint: everything above this is stable between requests.
       cache_control: { type: "ephemeral" },
     },
     {

@@ -99,7 +99,7 @@ under the input box.
 | File | Responsibility |
 | --- | --- |
 | `server/sources/wiki.ts` | reads the wiki pages, MiniSearch index, decodes `%3A`/`%2D` in page names |
-| `server/sources/dbt.ts` | reads `manifest.sources` (45 dataprodukter) + `catalog.json`; merges columns case-insensitively because dbt uses lowercase and SQL Server PascalCase |
+| `server/sources/dbt.ts` | reads `manifest.sources` (the dataprodukter) + `catalog.json`; merges columns case-insensitively because dbt uses lowercase and SQL Server PascalCase |
 | `server/status.ts` | freshness: `git log -1` for the wiki, `generated_at` for dbt |
 | `server/paths.ts` | resolves the repo root and both snapshot locations, incl. `STAT19_*_DIR` overrides |
 | `server/env.ts` | loads `../.env` before the SDK reads the key (imported first in `index.ts`) |
@@ -118,7 +118,8 @@ frames while `cli.ts` prints them. That is why there is one tool implementation,
 
 ## Retrieval, and how to tell it is working
 
-Both searches are lexical over small local corpora (175 wiki pages, 45 dataprodukter). The
+Both searches are lexical over small local corpora (a couple of hundred wiki pages, a few dozen
+dataprodukter). The
 failure that matters is not a missed hit — it is a query scoring well when nothing relevant
 exists, because `regler.md` requires the assistant to separate *"this does not exist in Stat19"*
 from *"I cannot find it in my snapshot"*, and it can only do that if a weak match is reported as
@@ -176,7 +177,8 @@ outscored `ventetid` three to one.
 ## Possible future improvements
 
 **Enrich dbt metadata from [helsedata.no](https://helsedata.no/).** The real limit on retrieval
-is not the algorithm — **590 of 1354 dbt columns have no description at all**. `ansienDato` is a
+is not the algorithm — **roughly two thirds of dbt columns have no description at all** (1 519 of
+2 286 in the snapshot this was measured on). `ansienDato` is a
 bare name, so no search, lexical or semantic, can connect it to a question about *ventetid*; there
 is no text to match. helsedata.no publishes the national variable catalogue for the same
 registries, built to the national metadata specification (DCAT/SKOS), and would supply exactly
