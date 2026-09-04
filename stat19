@@ -1,0 +1,8 @@
+#!/bin/bash
+# Stat19-assistenten på kommandolinja. Kjør ./stat19 --help
+cd "$(dirname "$0")/app" || exit 1
+if [ ! -d node_modules ]; then
+  echo "Avhengighetene mangler – kjør « node setup.mjs » først." >&2
+  exit 1
+fi
+exec npx --no-install tsx server/cli.ts "$@"

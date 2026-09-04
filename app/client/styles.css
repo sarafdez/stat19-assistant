@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* Light theme, deliberately. One blue spine, a warm sand for the wiki side and a
+   green for data, plus eight hues used to colour-code registers and wiki sections. */
+:root {
+  color-scheme: light;
+
+  --surface-page: #eef2f8;
+  --surface-panel: #ffffff;
+  --surface-sunken: #f4f7fb;
+  --surface-hover: #e6edf7;
+  --border-soft: #dbe3ef;
+  --border-strong: #c3cfe0;
+
+  --text-strong: #16283d;
+  --text-muted: #5b6b81;
+
+  --accent: #1f5fa9;
+  --accent-strong: #17497f;
+  --accent-soft: #dce9f8;
+
+  --wiki: #9a5b1d;
+  --wiki-soft: #fdefdd;
+  --dbt: #0f7059;
+  --dbt-soft: #dcf3ec;
+  --warn: #a05a00;
+  --warn-soft: #fdf0d8;
+
+  /* Register / section colour coding: text + tint pairs. */
+  --hue-0: #1f5fa9; --hue-0-soft: #dfeaf9;
+  --hue-1: #0f7059; --hue-1-soft: #dcf3ec;
+  --hue-2: #8a4ba8; --hue-2-soft: #f1e6f8;
+  --hue-3: #a8434f; --hue-3-soft: #fbe4e7;
+  --hue-4: #8a6a12; --hue-4-soft: #f8f0d6;
+  --hue-5: #17627f; --hue-5-soft: #dcf0f7;
+  --hue-6: #5a5bb0; --hue-6-soft: #e7e8fa;
+  --hue-7: #96551f; --hue-7-soft: #fbebdd;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-page);
+  color: var(--text-strong);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Markdown rendering for wiki pages and assistant answers. */
+.prose-wiki {
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--text-strong);
+}
+.prose-wiki h1,
+.prose-wiki h2,
+.prose-wiki h3,
+.prose-wiki h4 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 1.25em 0 0.5em;
+  color: var(--accent-strong);
+}
+.prose-wiki h1 { font-size: 1.2rem; }
+.prose-wiki h2 { font-size: 1.05rem; }
+.prose-wiki h3 { font-size: 0.95rem; color: var(--text-strong); }
+.prose-wiki p, .prose-wiki ul, .prose-wiki ol, .prose-wiki blockquote { margin: 0.65em 0; }
+.prose-wiki ul { list-style: disc; padding-left: 1.25rem; }
+.prose-wiki ol { list-style: decimal; padding-left: 1.25rem; }
+.prose-wiki li { margin: 0.2em 0; }
+.prose-wiki a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.prose-wiki strong { color: var(--accent-strong); }
+.prose-wiki code {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+}
+.prose-wiki pre {
+  background: #f7f9fc;
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 0.75rem;
+  overflow-x: auto;
+}
+.prose-wiki pre code { background: none; color: var(--text-strong); padding: 0; }
+.prose-wiki blockquote {
+  border-left: 3px solid var(--wiki);
+  background: var(--wiki-soft);
+  border-radius: 0 6px 6px 0;
+  padding: 0.35rem 0.75rem;
+  color: var(--text-strong);
+}
+.prose-wiki table {
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+.prose-wiki th, .prose-wiki td {
+  border: 1px solid var(--border-soft);
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+.prose-wiki th { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
+.prose-wiki tbody tr:nth-child(even) { background: var(--surface-sunken); }
+.prose-wiki img { max-width: 100%; border-radius: 6px; border: 1px solid var(--border-soft); }
+.prose-wiki hr { border: 0; border-top: 1px solid var(--border-soft); margin: 1.25em 0; }
+
+/* Activity while the model works, and a soft entrance for the answer. */
+@keyframes stat19-pulse {
+  0%, 100% { opacity: 0.25; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+.pulse-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: stat19-pulse 1.1s ease-in-out infinite;
+}
+@keyframes stat19-fade-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+.answer-in {
+  animation: stat19-fade-in 0.28s ease-out;
+}
+/* The live reasoning trace: fades toward the top so it reads as a running trail. */
+.thinking-trace {
+  max-height: 4.2rem;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, transparent, black 45%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 45%);
+}

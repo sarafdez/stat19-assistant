@@ -1,0 +1,22 @@
+# Internal FHI material — fetched by setup.mjs, never committed.
+# No trailing slash: these may be symlinks (e.g. dbt -> OneDrive), and "dbt/" would
+# match a real directory but not a symlink, quietly committing the link itself.
+Stat19.wiki
+dbt
+
+# Working files: protocol drafts and project notes stay local.
+prosjekter/*
+!prosjekter/.gitkeep
+
+# Secrets
+.env
+.env.local
+
+# Build output and dependencies
+app/node_modules/
+app/dist/
+node_modules/
+
+# OS noise
+.DS_Store
+Thumbs.db
