@@ -1,0 +1,21 @@
+// Emit the server/CLI as plain JavaScript, so it can run under `node` without tsx.
+//
+// tsx drives esbuild, which spawns a native esbuild.exe. On a machine with
+// application allowlisting (AppLocker) that binary cannot run from node_modules,
+// so the CLI dies with `spawn UNKNOWN`. tsc is pure JavaScript and has no such
+// dependency, so compiling ahead of time sidesteps it entirely.
+//
+// Relative imports in server/ carry explicit .ts extensions;
+// rewriteRelativeImportExtensions (TS 5.7+) turns those into .js on the way out.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist-server",
+    "rewriteRelativeImportExtensions": true,
+    "sourceMap": true,
+    "incremental": true,
+    "tsBuildInfoFile": "dist-server/.tsbuildinfo"
+  },
+  "include": ["server"]
+}

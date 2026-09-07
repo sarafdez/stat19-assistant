@@ -5,4 +5,13 @@ if [ ! -d node_modules ]; then
   echo "Avhengighetene mangler – kjør « node setup.mjs » først." >&2
   exit 1
 fi
-exec npx --no-install tsx server/cli.ts "$@"
+# Kompiler server/ til vanlig JavaScript og kjør det under node.
+# tsx ville vært enklere, men det driver esbuild, som starter en egen
+# esbuild.exe – den blokkeres av programkontroll (AppLocker) på FHI-PC-er.
+# tsc er ren JavaScript. Bygget er inkrementelt, så dette tar ~1 s når
+# ingenting er endret, og kan aldri bli utdatert. Se tsconfig.server.json.
+if ! node node_modules/typescript/bin/tsc -p tsconfig.server.json >&2; then
+  echo "Kompileringen feilet – se feilmeldingene over." >&2
+  exit 1
+fi
+exec node dist-server/cli.js "$@"

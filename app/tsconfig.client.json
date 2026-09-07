@@ -1,0 +1,21 @@
+// Compile the React client to plain JavaScript, for the esbuild-free build in build-client.mjs.
+//
+// Vite would normally do this, but Vite delegates TS/JSX to esbuild, whose native
+// esbuild.exe is blocked by application allowlisting on FHI PCs. tsc is pure
+// JavaScript, and Rollup's native part is a .node addon, which such policies do
+// not block — so tsc + Rollup can produce the same bundle. See README section 4.
+//
+// Output is intermediate: build-client.mjs bundles it into app/dist and deletes it.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".build-client",
+    "rewriteRelativeImportExtensions": true,
+    "types": [],
+    "sourceMap": true,
+    "incremental": true,
+    "tsBuildInfoFile": ".build-client/.tsbuildinfo"
+  },
+  "include": ["client"]
+}

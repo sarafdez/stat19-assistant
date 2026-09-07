@@ -79,7 +79,13 @@ const heading = (text) => console.log(`\n${c.bold}${text}${c.off}`);
 function run(cmd, cmdArgs, opts = {}) {
   const res = spawnSync(cmd, cmdArgs, {
     stdio: "inherit",
-    shell: false,
+    // On Windows « npm » is really npm.cmd: without a shell, spawn does not apply
+    // PATHEXT, so it fails with « spawnSync npm ENOENT » and step 2 always failed
+    // there. Nor can a .cmd be spawned shell-lessly since the CVE-2024-27980
+    // hardening in Node 20.12. git is a real .exe and needs no shell — keep it out,
+    // so credential prompts keep working. Every argument below is a literal, so
+    // there is nothing here for a shell to interpolate.
+    shell: process.platform === "win32" && cmd === "npm",
     env: { ...process.env, GIT_TERMINAL_PROMPT: "1" },
     ...opts,
   });
@@ -113,7 +119,11 @@ function readEnvFile() {
   }
 }
 const envText = readEnvFile();
-const keyInEnvFile = /^\s*ANTHROPIC_API_KEY\s*=\s*\S+/m.test(envText);
+// [^\S\r\n] is "whitespace but not a line break". Plain \s* would let the match run past
+// the end of the line, so an empty « ANTHROPIC_API_KEY= » matched the first non-blank
+// character further down the file — the # of the next comment — and reported a key that
+// was not there. The chat then failed later with a confusing error.
+const keyInEnvFile = /^[^\S\r\n]*ANTHROPIC_API_KEY[^\S\r\n]*=[^\S\r\n]*\S+/m.test(envText);
 const keyInShell = Boolean(process.env.ANTHROPIC_API_KEY);
 
 if (keyInEnvFile) {
@@ -142,11 +152,25 @@ heading("2/4  Avhengigheter");
 if (skip("install")) {
   warn("install", "Hoppet over (--no-install).");
 } else {
+  const appDir = path.join(ROOT, "app");
   try {
-    run("npm", ["install", "--no-audit", "--no-fund"], { cwd: path.join(ROOT, "app") });
+    run("npm", ["install", "--no-audit", "--no-fund"], { cwd: appDir });
     ok("install", "npm-pakkene er installert");
   } catch (err) {
-    fail("install", `npm install feilet: ${err.message}`, "Kjør « cd app && npm install » manuelt og se feilmeldingen.");
+    // On a PC with programkontroll (AppLocker) esbuild's postinstall dies: it runs the
+    // esbuild.exe it just unpacked into node_modules, and executables there are blocked.
+    // The packages themselves are fine, so retry without install-skript. See README § 4-5.
+    console.log(`  ${c.dim}npm install feilet – prøver igjen uten install-skript …${c.off}`);
+    try {
+      run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: appDir });
+      warn(
+        "install",
+        "npm-pakkene er installert, men uten install-skript.",
+        "Normalt på en FHI-PC: esbuild kan ikke kjøre binæren sin. start.bat og stat19.bat virker likevel – se README § 4.",
+      );
+    } catch (retryErr) {
+      fail("install", `npm install feilet: ${retryErr.message}`, "Kjør « cd app && npm install » manuelt og se feilmeldingen.");
+    }
   }
 }
 
@@ -319,6 +343,11 @@ console.log(
   `\n${c.bold}Start appen:${c.off}\n` +
     `  macOS    dobbeltklikk start.command\n` +
     `  Windows  dobbeltklikk start.bat\n` +
-    `  terminal cd app && npm run dev      ${c.dim}→ http://localhost:5178${c.off}\n`,
+    `  terminal cd app && npm run dev      ${c.dim}→ http://localhost:5178${c.off}\n` +
+    // On a PC with programkontroll the three lines above cannot work: they all need
+    // esbuild. Point at the fallback rather than let the reader hit `spawn UNKNOWN`.
+    `\n${c.dim}På en FHI-PC med programkontroll kan ikke esbuild kjøre. Da bygger start.mjs\n` +
+    `klienten uten Vite og serverer den på http://127.0.0.1:5179 i stedet – samme\n` +
+    `dobbeltklikk. CLI-en (stat19 / stat19.bat) virker også. Se README § 4-5.${c.off}\n`,
 );
 process.exit(failed.length ? 1 : 0);
