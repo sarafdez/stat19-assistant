@@ -61,6 +61,7 @@ Metadata only, no person-level data. Everything can then be read and tested loca
 | `setup.mjs` | one-command setup: deps, wiki clone/pull, dbt download, `.env` |
 | `stat19` / `stat19.bat` | CLI launcher — `./stat19 --protocol "tema" --save` |
 | `start.mjs` | cross-platform app launcher; `start.command`/`start.bat` just call it |
+| `app/build-client.mjs` | builds the client without Vite, for machines where esbuild is blocked |
 | `README.md` / `SNAPSHOTS.md` | user-facing docs, in English — setup and how to obtain the two snapshots |
 | `prosjekter/` | working files — protocol drafts land here |
 | `Stat19.wiki/` | the wiki clone (git-ignored, fetched by setup) |
@@ -92,6 +93,11 @@ Lokal app i `app/` — chat til venstre, wiki-panel og dbt-panel til høyre.
 Start: `node setup.mjs` én gang, deretter `node start.mjs` (eller dobbeltklikk `start.command` på
 macOS / `start.bat` på Windows – begge er tynne wrappere rundt den). `cd app && npm run dev`
 kjører serverne direkte (klient :5178, API :5179).
+
+På en FHI-PC blokkerer programkontroll `esbuild.exe`, så `npm run dev` og `tsx` faller. `start.mjs`
+oppdager det og bygger klienten med `tsc` + Rollup (`app/build-client.mjs`) og serverer den fra den
+kompilerte serveren på :5179 i stedet – ingen hot reload. CLI-en kompilerer tilsvarende med `tsc`.
+Redigerer du `client/` på en slik maskin, kjør `npm run build:noesbuild` på nytt. README § 4.
 
 - Modell og grundighet velges i topplinja: Opus 5 / Sonnet 5 / Haiku 4.5, effort lav/middels/høy.
 - React + TypeScript + Vite + Tailwind; Express-backend som kaller valgt modell med seks

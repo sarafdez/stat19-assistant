@@ -23,7 +23,10 @@ time to refresh — it prints what it could not reach.
 
 ## 2. What you need
 
-**Node 20.12+**, **git**, and:
+**Node 20.12+** and **git** — on an FHI Windows PC both come from **Firmaportalen**, so you can
+install them yourself without raising a ticket. Take Node from there rather than from
+nodejs.org: these machines only run programs from approved locations, and a manual install into
+your own user folder will be blocked (see section 4). Then:
 
 | | Needs |
 | --- | --- |
@@ -34,6 +37,10 @@ time to refresh — it prints what it could not reach.
 The app runs anywhere and starts without either snapshot, saying what it lacks. Missing them, or
 keeping them in a shared folder, is covered in **[SNAPSHOTS.md](SNAPSHOTS.md)**.
 
+On an FHI PC, setup will report **« npm-pakkene er installert, men uten install-skript »**. That
+is expected and needs no action — esbuild's postinstall tries to run a binary the machine does
+not allow, so setup retries without install-scripts. Everything works; section 4 explains why.
+
 ## 3. Run the app
 
 ```bash
@@ -43,6 +50,10 @@ node start.mjs             # or double-click start.command (macOS) / start.bat (
 Opens at **http://localhost:5178** once the server is ready — chat on the left, wiki and
 dataprodukt panels on the right. Ctrl+C stops it. Use it when you want to check an answer: click
 a source link and read the page behind it.
+
+On a machine where esbuild cannot run — an FHI PC with application allowlisting — the same
+command serves the app on <http://127.0.0.1:5179> instead, without hot reload. Section 4
+explains that; nothing extra to do.
 
 ## 4. Run the CLI
 
@@ -77,44 +88,6 @@ the need for it.
 
 ---
 
-## 5. Starting from scratch on a managed FHI Windows PC
-
-These machines run application allowlisting (AppLocker): executables run only from allowlisted
-locations, and `node_modules` is not one of them. Two things follow — Node has to come from IT,
-and nothing that spawns a bundled `.exe` will work.
-
-**Ask IT for this first**, because you cannot install it yourself — there is no local admin, and
-a `winget --scope user` install lands in `AppData`, where it is blocked:
-
-- **Node.js 20.12+ installed to `C:\Program Files\nodejs`.** That path is allowlisted.
-- Optionally, `esbuild.exe` allowlisted as well. Not required — everything below works without
-  it — but it makes `npm run dev` and `start.bat` behave as documented in sections 3 and 4.
-
-You also need Git (already present and publisher-allowlisted on these machines), an FHI account
-with Stat19 access in Azure DevOps, the FHI network or VPN for the dbt export, and your own
-Anthropic key.
-
-```bash
-git clone <this-repo> stat19-assistant
-cd stat19-assistant
-node setup.mjs                                   # paste your key; a browser handles the SSO
-cd app && npm install --ignore-scripts && cd ..
-```
-
-Expect two rough edges:
-
-- **`node setup.mjs` reports `npm install feilet: spawnSync npm ENOENT`** and you must run the
-  `npm install` yourself, as above. Setup runs `npm` with `shell: false`, and on Windows `npm`
-  is `npm.cmd`, which cannot be spawned that way. This is unrelated to the allowlist — it fails
-  on any Windows machine. Everything else in setup (key, wiki clone, dbt) works.
-- **Keep `--ignore-scripts`.** A plain `npm install` dies in esbuild's postinstall, which tries
-  to run the blocked binary, and then leaves a partly cleaned `node_modules` behind.
-
-Then double-click **`start.bat`** for the app, or use `stat19.bat` for the CLI. Neither goes
-through Vite or tsx on such a machine; section 4 explains why.
-
-The snapshots can also be shared rather than fetched per machine — see
-[SNAPSHOTS.md](SNAPSHOTS.md) for `STAT19_WIKI_DIR` and `STAT19_DBT_DIR`.
 
 ---
 

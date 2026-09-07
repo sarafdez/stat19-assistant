@@ -102,12 +102,14 @@ function has(cmd) {
 heading("Stat19-assistenten – oppsett");
 const [major, minor] = process.versions.node.split(".").map(Number);
 if (major < 20 || (major === 20 && minor < 12)) {
-  fail("node", `Node ${process.versions.node} er for gammel.`, "Installer Node 20.12 eller nyere: https://nodejs.org");
+  // On an FHI PC, nodejs.org is the wrong answer: a manual install lands in a user folder,
+  // where programkontroll blocks it. Firmaportalen puts it under Program Files.
+  fail("node", `Node ${process.versions.node} er for gammel.`, "Installer Node 20.12 eller nyere – på FHI-PC fra Firmaportalen, ellers https://nodejs.org");
   process.exit(1);
 }
 ok("node", `Node ${process.versions.node}`);
 const gitAvailable = has("git");
-if (!gitAvailable) warn("git", "git ble ikke funnet.", "Trengs for å hente wikien: https://git-scm.com/downloads");
+if (!gitAvailable) warn("git", "git ble ikke funnet.", "Trengs for å hente wikien – på FHI-PC fra Firmaportalen, ellers https://git-scm.com/downloads");
 
 // ── 1. API key in .env ──────────────────────────────────────────────────────────
 heading("1/4  API-nøkkel");
@@ -159,7 +161,7 @@ if (skip("install")) {
   } catch (err) {
     // On a PC with programkontroll (AppLocker) esbuild's postinstall dies: it runs the
     // esbuild.exe it just unpacked into node_modules, and executables there are blocked.
-    // The packages themselves are fine, so retry without install-skript. See README § 4-5.
+    // The packages themselves are fine, so retry without install-skript. See README § 4.
     console.log(`  ${c.dim}npm install feilet – prøver igjen uten install-skript …${c.off}`);
     try {
       run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: appDir });
@@ -348,6 +350,6 @@ console.log(
     // esbuild. Point at the fallback rather than let the reader hit `spawn UNKNOWN`.
     `\n${c.dim}På en FHI-PC med programkontroll kan ikke esbuild kjøre. Da bygger start.mjs\n` +
     `klienten uten Vite og serverer den på http://127.0.0.1:5179 i stedet – samme\n` +
-    `dobbeltklikk. CLI-en (stat19 / stat19.bat) virker også. Se README § 4-5.${c.off}\n`,
+    `dobbeltklikk. CLI-en (stat19 / stat19.bat) virker også. Se README § 4.${c.off}\n`,
 );
 process.exit(failed.length ? 1 : 0);
