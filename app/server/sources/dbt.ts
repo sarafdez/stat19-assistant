@@ -29,9 +29,11 @@ let generatedAt: string | null = null;
 let loadError: string | null = null;
 
 /**
- * Only `manifest.sources` matters: those are the dataprodukter (source.fida.<register>.<table>).
- * `manifest.nodes` holds the per-team views, which CLAUDE.md says to ignore.
- * catalog.json supplies the real SQL types.
+ * Reads three keys and no more: `manifest.sources` (the dataprodukter,
+ * source.fida.<register>.<table>), `manifest.docs` (the shared variable descriptions, used only
+ * where a dataprodukt describes nothing itself — see describe() below), and `catalog.sources`
+ * for the real SQL column names and types. `manifest.nodes` holds the per-team views, which
+ * CLAUDE.md says to ignore, and stays unread.
  */
 export function loadDbt(): void {
   sources = new Map();
