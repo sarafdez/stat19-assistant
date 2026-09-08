@@ -147,7 +147,18 @@ export default function DbtPanel({ fromChat }: { fromChat: PanelTarget | null })
                       <td className="px-2 py-1" style={{ color: "var(--dbt)" }}>
                         {col.type ?? "—"}
                       </td>
-                      <td className="px-2 py-1">{col.description || "—"}</td>
+                      <td className="px-2 py-1">
+                        {col.description || "—"}
+                        {col.descriptionFrom === "doc-block" && (
+                          <span
+                            className="ml-1 whitespace-nowrap rounded px-1 py-[1px] text-[9px]"
+                            style={{ background: "var(--dbt-soft)", color: "var(--dbt)" }}
+                            title="Beskrivelsen står i dbts doc-blokk for registeret, ikke på dataproduktet selv"
+                          >
+                            doc-blokk
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

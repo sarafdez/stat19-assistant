@@ -9,6 +9,8 @@ export type DbtColumn = {
   codeName: string | null;
   type: string | null;
   description: string;
+  /** Where the description came from: the dataprodukt itself, or the register's dbt doc block. */
+  descriptionFrom: "source" | "doc-block" | null;
 };
 export type DbtSource = {
   id: string;
@@ -44,6 +46,26 @@ export function loadDbt(): void {
     const catalog = fs.existsSync(CATALOG) ? JSON.parse(fs.readFileSync(CATALOG, "utf8")) : { sources: {} };
     generatedAt = manifest?.metadata?.generated_at ?? null;
 
+    // Column descriptions sit in two places. `manifest.sources` is the authoritative one, but for
+    // some registers — NPR worst of all — it is all but empty. The same text lives in dbt's
+    // doc blocks (`doc.fida.<register>_<kolonne>`), which dbt resolves onto the team views under
+    // `nodes`. The views themselves stay out of scope, but a doc block describes the register's
+    // column, not one team's cut of it, so it is fair to read when the dataprodukt says nothing.
+    const docBlocks = new Map<string, string>();
+    for (const block of Object.values<any>(manifest.docs ?? {})) {
+      const text = String(block?.block_contents ?? "").trim();
+      if (block?.name && text) docBlocks.set(String(block.name).toLowerCase(), text);
+    }
+    const describe = (
+      register: string,
+      column: string,
+      own: string,
+    ): Pick<DbtColumn, "description" | "descriptionFrom"> => {
+      if (own) return { description: own, descriptionFrom: "source" };
+      const block = docBlocks.get(`${register}_${column}`.toLowerCase());
+      return block ? { description: block, descriptionFrom: "doc-block" } : { description: "", descriptionFrom: null };
+    };
+
     for (const [id, node] of Object.entries<any>(manifest.sources ?? {})) {
       const catColumns: Record<string, any> = catalog.sources?.[id]?.columns ?? {};
       const docColumns: Record<string, any> = node.columns ?? {};
@@ -59,12 +81,17 @@ export function loadDbt(): void {
           name: catName,
           codeName: doc && doc.key !== catName ? doc.key : null,
           type: catValue?.type ?? null,
-          description: (doc?.value?.description ?? "").trim(),
+          ...describe(node.source_name, catName, (doc?.value?.description ?? "").trim()),
         });
       }
       for (const [lower, doc] of docByLower) {
         if (seen.has(lower)) continue;
-        merged.push({ name: doc.key, codeName: null, type: null, description: (doc.value?.description ?? "").trim() });
+        merged.push({
+          name: doc.key,
+          codeName: null,
+          type: null,
+          ...describe(node.source_name, doc.key, (doc.value?.description ?? "").trim()),
+        });
       }
       sources.set(id, {
         id,

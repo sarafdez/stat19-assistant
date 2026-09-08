@@ -99,7 +99,7 @@ under the input box.
 | File | Responsibility |
 | --- | --- |
 | `server/sources/wiki.ts` | reads the wiki pages, MiniSearch index, decodes `%3A`/`%2D` in page names |
-| `server/sources/dbt.ts` | reads `manifest.sources` (the dataprodukter) + `catalog.json`; merges columns case-insensitively because dbt uses lowercase and SQL Server PascalCase |
+| `server/sources/dbt.ts` | reads `manifest.sources` (the dataprodukter) + `catalog.json`; merges columns case-insensitively because dbt uses lowercase and SQL Server PascalCase; falls back to the register's doc block (`doc.fida.<register>_<column>`) for columns the dataprodukt leaves undescribed, tagged `descriptionFrom: "doc-block"` |
 | `server/status.ts` | freshness: `git log -1` for the wiki, `generated_at` for dbt |
 | `server/paths.ts` | resolves the repo root and both snapshot locations, incl. `STAT19_*_DIR` overrides |
 | `server/env.ts` | loads `../.env` before the SDK reads the key (imported first in `index.ts`) |
@@ -177,12 +177,22 @@ outscored `ventetid` three to one.
 ## Possible future improvements
 
 **Enrich dbt metadata from [helsedata.no](https://helsedata.no/).** The real limit on retrieval
-is not the algorithm — **roughly two thirds of dbt columns have no description at all** (1 519 of
-2 286 in the snapshot this was measured on). `ansienDato` is a
-bare name, so no search, lexical or semantic, can connect it to a question about *ventetid*; there
-is no text to match. helsedata.no publishes the national variable catalogue for the same
-registries, built to the national metadata specification (DCAT/SKOS), and would supply exactly
-that missing text.
+is not the algorithm — **just under half of dbt columns have no description at all** (1 106 of
+2 286 in the snapshot this was measured on: 767 described on the dataprodukt, 413 recovered from
+doc blocks). Where nothing is described, the column name is all a search has to match, so no
+search, lexical or semantic, can connect a bare name to the question it answers. helsedata.no
+publishes the national variable catalogue for the same registries, built to the national metadata
+specification (DCAT/SKOS), and would supply exactly that missing text.
+
+Note what the doc-block fallback already settled. `manifest.sources` documents almost nothing for
+NPR — 5 of its 1 265 columns — while the same text sits in dbt's doc blocks and is applied to the
+team views under `nodes`. Reading the doc block directly gave 413 columns a description, among
+them `ansienDato`, which was the worked example for this section: *"Den første mottaksdato for en
+henvisning i kjeden av mottaksdatoer i offentlig spesialisthelsetjeneste."* It also answers half
+of the crosswalk question below — 907 of the descriptions carry a helsedata link whose query
+string is the national variable id (`V_NPR.ANSIENDATO-K_NPR.HENVISNING`), so for those columns the
+mapping does not have to be guessed. What remains unenriched is the 1 106 with no text anywhere in
+dbt.
 
 Sketched design, not built:
 
@@ -193,8 +203,9 @@ Sketched design, not built:
   rests on, and makes staleness visible like the other two snapshots.
 - Two open questions first: does the catalogue expose a machine-readable endpoint (no public API
   was found when this was written), and does a crosswalk exist between register variable names and
-  the warehouse names dbt reports (`ansienDato` vs `ansiennitetsdato`)? Expect the mapping to need
-  hand-checking for high-value variables; automatic fuzzy matching would mismatch silently.
+  the warehouse names dbt reports (`ansienDato` vs `ansiennitetsdato`)? The doc-block links give
+  the crosswalk for the columns that have one; for the rest, expect the mapping to need
+  hand-checking for high-value variables — automatic fuzzy matching would mismatch silently.
 - Caveat to carry into the design: helsedata describes what the **register** holds, while Stat19
   receives a subset, before the register's own QA. Coverage years especially must keep coming from
   the wiki, as `regler.md` already requires.

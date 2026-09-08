@@ -67,6 +67,7 @@ function tools(emit: ChatSink) {
     products: listDbtSources().length,
     columns: columns.length,
     undocumented: columns.filter((column) => !column.description).length,
+    fromDocBlocks: columns.filter((column) => column.descriptionFrom === "doc-block").length,
   };
 
   /**
@@ -185,9 +186,10 @@ function tools(emit: ChatSink) {
       "(model.fida.*_<team>, dvs. team-views med det enkelte teamet allerede har fått) er bevisst " +
       "utelatt og skal ikke brukes. Bruk dette for å FINNE dataproduktet – ikke for å avgjøre hvilke " +
       `variabler det har. ${counts.undocumented} av ${counts.columns} kolonner mangler beskrivelse i dbt, ` +
-      "så søket ser bare kolonnenavnet: variabler med kryptiske navn (f.eks. ansienDato for " +
-      "ansiennitetsdato) blir ikke funnet av et søk på «ventetid». Har du funnet dataproduktet, kall " +
-      "get_dbt_source og les hele kolonnelista før du sier at en variabel ikke finnes.",
+      "og for dem ser søket bare kolonnenavnet: en variabel med kryptisk navn blir ikke funnet av et " +
+      `søk på temaet sitt. (${counts.fromDocBlocks} beskrivelser er hentet fra registerets doc-blokk i ` +
+      "dbt framfor fra dataproduktet selv; de er merket [doc-blokk] i get_dbt_source.) Har du funnet " +
+      "dataproduktet, kall get_dbt_source og les hele kolonnelista før du sier at en variabel ikke finnes.",
     inputSchema: z.object({
       query: z.string().describe("Søkeord, f.eks. 'ventetid', 'fnr_hash', 'sykehusepj'"),
       limit: z.number().int().min(1).max(20).optional(),
@@ -236,6 +238,18 @@ function tools(emit: ChatSink) {
     run: async ({ id }) => {
       const source = getDbtSource(id);
       if (!source) return `Fant ikke dataproduktet '${id}'.`;
+      // Descriptions contain newlines and markdown links; both break a bullet list, and in a
+      // 199-column table the URLs are pure token cost. Nearly every one is the same trailing
+      // "helsedata" reference, which says nothing once the URL is gone — drop those outright and
+      // keep only the label of the rest (FinnKode, wiki pages), which does carry meaning.
+      // The panel still shows the description in full, links included.
+      const oneLine = (text: string) =>
+        text
+          .replace(/\[helsedata[^\]]*\]\([^)]*\)/gi, "")
+          .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+          .replace(/\s+/g, " ")
+          .trim();
+      const fromDocBlock = source.columns.filter((c) => c.descriptionFrom === "doc-block").length;
       emit({ type: "tool", tool: "get_dbt_source", query: source.label });
       reveal("dbt", { id: source.id, title: source.label });
       return [
@@ -248,12 +262,24 @@ function tools(emit: ChatSink) {
             `- ${c.name}${c.codeName ? ` (dbt: ${c.codeName})` : ""}${c.type ? ` [${c.type}]` : ""}` +
             // An undescribed column must not look like one you failed to look up: most columns
             // have no dbt description, so silence here is the normal case, not a miss.
-            `${c.description ? ` – ${c.description}` : " – [udokumentert i dbt]"}`,
+            `${
+              c.description
+                ? ` – ${oneLine(c.description)}${c.descriptionFrom === "doc-block" ? " [doc-blokk]" : ""}`
+                : " – [udokumentert i dbt]"
+            }`,
         ),
         "",
         `${source.columns.filter((c) => !c.description).length} av ${source.columns.length} kolonner mangler ` +
           `beskrivelse i dbt. Navnet er likevel korrekt og kan bestilles; si at beskrivelsen er udokumentert ` +
           `framfor å dikte opp hva kolonnen inneholder.`,
+        ...(fromDocBlock
+          ? [
+              `${fromDocBlock} av beskrivelsene er merket [doc-blokk]. De står ikke på dataproduktet selv, ` +
+                `men i dbts doc-blokk for registeret (doc.fida.<register>_<kolonne>) – registerets egen ` +
+                `variabelbeskrivelse, som dbt ellers bruker på team-viewene. Det er verifisert dbt-metadata ` +
+                `og kan oppgis som kilde.`,
+            ]
+          : []),
       ].join("\n");
     },
   });

@@ -41,6 +41,12 @@ export const CASES: Case[] = [
   { query: "mal for protokoll", wiki: ["Mal"] },
   { query: "hvordan bestiller jeg data", wiki: ["Tilgang", "Teamleder"], wikiSection: "Stat19-Wiki" },
 
+  // Only findable because column descriptions now fall back to the register's dbt doc block:
+  // `manifest.sources` describes 5 of NPR's 1 265 columns, and the word "ansiennitetsdato"
+  // appears in none of them — it is the doc block for `ansienDato` that carries it.
+  { query: "ansiennitetsdato", dbt: ["npr_som_hoved"] },
+  { query: "når ble henvisningen mottatt", dbt: ["npr", "sykehusepj"] },
+
   // ── clinical vocabulary: no dataprodukt is named after a disease, so these must land on
   //    the register that carries the codes. Each one was a measured miss before the
   //    synonym map covered it.

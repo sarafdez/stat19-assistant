@@ -117,6 +117,11 @@ Redigerer du `client/` på en slik maskin, kjør `npm run build:noesbuild` på n
   token-bruken nede. Modellen kan hente flere avsnitt med `sections` eller hele siden med `full`.
 - Merk: dbt dokumenterer kolonner med små bokstaver, mens SQL Server viser PascalCase. Appen
   slår dem sammen case-uavhengig og viser dbt-navnet i parentes når de er ulike.
+- `manifest.sources` er nesten udokumentert for NPR, mens teksten ligger i dbts doc-blokker
+  (`doc.fida.<register>_<kolonne>`) som dbt bruker på team-viewene. Mangler en kildekolonne
+  beskrivelse, leser `loadDbt()` doc-blokka i stedet og merker den `descriptionFrom: "doc-block"`
+  – vist som «doc-blokk» i dbt-panelet og i `get_dbt_source`. Team-viewene er fortsatt utelatt
+  som dataprodukter; det er bare registerets variabelbeskrivelse som hentes.
 - CLI: `./stat19 "spørsmål"` gir samme assistent uten nettleser (`app/server/cli.ts`). Begge
   flatene kaller samme `streamChat()`, som tar en `ChatSink`-callback – `index.ts` gjør eventene
   om til SSE, `cli.ts` skriver dem til stderr. Én verktøyimplementasjon, ikke to.

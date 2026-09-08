@@ -32,7 +32,13 @@ export type ModelsResponse = { models: ModelChoice[]; efforts: EffortChoice[] };
 export type WikiHit = { id: string; title: string; breadcrumb: string[]; score: number; snippet: string };
 export type WikiEntry = { id: string; title: string; breadcrumb: string[]; section: string };
 export type WikiPage = { id: string; title: string; breadcrumb: string[]; markdown: string };
-export type DbtColumn = { name: string; codeName: string | null; type: string | null; description: string };
+export type DbtColumn = {
+  name: string;
+  codeName: string | null;
+  type: string | null;
+  description: string;
+  descriptionFrom: "source" | "doc-block" | null;
+};
 export type DbtHit = {
   id: string;
   label: string;
