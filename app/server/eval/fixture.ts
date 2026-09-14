@@ -58,13 +58,27 @@ export const CASES: Case[] = [
   { query: "poliklinisk konsultasjon", dbt: ["npr", "sykehusepj"] },
   { query: "hvilke kodeverk brukes for prosedyrer", dbt: ["npr", "sykehusepj"] },
 
+  // ── the joined dataprodukter, which are dbt models rather than sources. A team orders
+  //    these by name, so ranking the raw source tables above them is the failure: it is what
+  //    produced a table listing "KprKuhr" and "MFR" as the things to order.
+  { query: "konsultasjon hos fastlege", dbt: ["KprKuhr.Konsultasjon"] },
+  { query: "svangerskap og fødsel koblet", dbt: ["MFR.SvangerskapBarn"] },
+  { query: "pasientforløp", dbt: ["SykehusEPJ.Pasientforløp"] },
+  { query: "dødsårsak historikk", dbt: ["DÅR.diagnoserArsak_SCD2"] },
+  // The code lists, which are how a kodeverk gets confirmed instead of recalled.
+  { query: "ICPC-2 kodeverk", dbt: ["icpcKode"] },
+  { query: "ICD-10 diagnosekoder", dbt: ["icdKode"] },
+
   // ── queries Stat19 cannot answer: the result must be recognisably empty ──────
   { query: "kvantefysikk på månen", nothing: true },
   { query: "aksjekurser og renteutvikling", nothing: true },
   { query: "hvordan er det", nothing: true },
   { query: "kan jeg få data om noe", nothing: true },
   { query: "utdanningsnivå og inntekt", nothing: true }, // genuinely absent — lives at SSB
-  { query: "innvandrerbakgrunn", nothing: true }, // fødeland/innvandringsgrunn is SSB, not Stat19
+  // Innvandringsgrunn is SSB. Fødeland is not — Folkeregisteret.md documents fodeland and
+  // person_m_foreldres_fodeland as dataprodukter — but no product is named for the concept, so
+  // the honest answer to this phrasing is still "nothing stands out".
+  { query: "innvandrerbakgrunn", nothing: true },
   { query: "boligpriser i Oslo", nothing: true },
 ];
 

@@ -70,6 +70,11 @@ function tools(emit: ChatSink) {
     undocumented: columns.filter((column) => !column.description).length,
     fromDocBlocks: columns.filter((column) => column.descriptionFrom === "doc-block").length,
   };
+  // Named from the snapshot, not written out here: which models count as dataprodukter is read
+  // off the wiki's links, so a wiki pull can add one and this description follows along.
+  const joined = listDbtSources()
+    .filter((source) => source.kind === "model")
+    .map((source) => source.label);
 
   /**
    * Offer the source as a link in the chat. The panels do not follow along on their own —
@@ -182,10 +187,12 @@ function tools(emit: ChatSink) {
   const searchDbtTool = betaZodTool({
     name: "search_dbt",
     description:
-      "Søk i dbt-metadata etter dataprodukter og faktiske kolonnenavn. Dekker kun dbt `sources` " +
-      "(source.fida.<register>.<tabell>) – altså dataproduktene teamene bestiller fra. dbt `nodes` " +
-      "(model.fida.*_<team>, dvs. team-views med det enkelte teamet allerede har fått) er bevisst " +
-      "utelatt og skal ikke brukes. Bruk dette for å FINNE dataproduktet – ikke for å avgjøre hvilke " +
+      "Søk i dbt-metadata etter dataprodukter og faktiske kolonnenavn. Dekker dbt `sources` " +
+      "(source.fida.<register>.<tabell>) pluss de `model`-ene wikiens egne dataproduktsider lenker " +
+      `til – de ferdig joinede tabellene og kodelistene team bestiller: ${joined.join(", ") || "ingen i dette snapshotet"}. ` +
+      "Øvrige `nodes` (model.fida.*_<team>, altså team-views med det det enkelte " +
+      "teamet har fått) er bevisst utelatt og skal ikke brukes. Bruk dette for å FINNE dataproduktet " +
+      "– ikke for å avgjøre hvilke " +
       `variabler det har. ${counts.undocumented} av ${counts.columns} kolonner mangler beskrivelse i dbt, ` +
       "og for dem ser søket bare kolonnenavnet: en variabel med kryptisk navn blir ikke funnet av et " +
       `søk på temaet sitt. (${counts.fromDocBlocks} beskrivelser er hentet fra registerets doc-blokk i ` +
@@ -230,8 +237,8 @@ function tools(emit: ChatSink) {
   const getDbtSourceTool = betaZodTool({
     name: "get_dbt_source",
     description:
-      "Hent ALLE kolonner (navn, datatype, beskrivelse) for ett dataprodukt fra dbt `sources`. " +
-      "Godtar id (source.fida.npr.npr_som_hoved) eller 'register.tabell'. Dette er den " +
+      "Hent ALLE kolonner (navn, datatype, beskrivelse) for ett dataprodukt. " +
+      "Godtar id (source.fida.npr.npr_som_hoved, model.fida.konsultasjon) eller 'register.tabell'. Dette er den " +
       "autoritative lista over hvilke variabler som finnes – search_dbt finner bare de som har " +
       "søkeordet i navnet eller beskrivelsen. Kall alltid denne før du oppgir variabelnavn i et " +
       "protokollutkast, og før du konkluderer med at en variabel ikke finnes.",
@@ -254,7 +261,11 @@ function tools(emit: ChatSink) {
       emit({ type: "tool", tool: "get_dbt_source", query: source.label });
       reveal("dbt", { id: source.id, title: source.label });
       return [
-        `${source.label} (skjema ${source.schema}.${source.identifier})`,
+        `${source.label} (skjema ${source.schema}.${source.identifier})` +
+          (source.kind === "model"
+            ? " – ferdig joinet dataprodukt (dbt model). Det er dette navnet teamet bestiller, ikke " +
+              "de underliggende kildetabellene."
+            : ""),
         source.description,
         "",
         "Kolonner:",

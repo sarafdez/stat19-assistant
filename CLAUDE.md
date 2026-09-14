@@ -47,7 +47,10 @@ can be copied in by hand. Full instructions: `SNAPSHOTS.md`.
 
 - `…/manifest.json` — dataprodukter, team views, column descriptions, lineage, and the model SQL
   that shows each team's filtering. This is the main source of information from dbt.
-  Dataprodukter are listed under `sources`; ignore `nodes`.
+  Dataprodukter are listed under `sources`, plus the `nodes` the wiki's own dataprodukt pages
+  link to (Konsultasjon, SvangerskapBarn, Pasientforløp, the code lists …) — `loadDbt()` derives
+  that set from those links, so the wiki decides it, not a list in the code. Team views
+  (`model.fida.<produkt>_<team>`) stay ignored.
 - `…/catalog.json` — real column names and data types
 
 Metadata only, no person-level data. Everything can then be read and tested locally.

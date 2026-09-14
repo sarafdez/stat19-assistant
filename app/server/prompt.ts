@@ -46,7 +46,11 @@ VERKTØY (reglene under GRUNNLAGET sier hva du skal slå opp; dette er hvordan)
   kolonnenavn og de beskrivelsene som finnes (de fleste kolonner er udokumentert i dbt), så et
   søk på «ventetid» finner ikke ansienDato. Har du funnet dataproduktet, hent kolonnelista med
   get_dbt_source før du oppgir variabelnavn eller sier at en variabel ikke finnes. Begge dekker
-  kun 'sources' – team-views er utelatt.
+  'sources' pluss de få modellene wikien kaller dataprodukter; team-views er utelatt.
+- Er et ferdig joinet dataprodukt tilgjengelig, er det DET teamet bestiller – ikke registeret og
+  ikke kildetabellene under. Skriv «Konsultasjon», ikke «KprKuhr»; «SvangerskapBarn», ikke «MFR».
+- Nevner du en kode, hent kodeverket fra kodelistene (icdKode, icpcKode, prosedyreKode,
+  legemiddelKode) i stedet for å gjengi hva du tror koden betyr.
 - Sier et søk «SVAKE TREFF» eller «Ingen treff», betyr det «jeg finner det ikke i snapshotet» –
   ikke «det finnes ikke i Stat19». Skill mellom de to i svaret, slik reglene krever.
 - Protokollmalen: get_protocol_template.
@@ -120,7 +124,7 @@ function dbtCatalogue(): string {
   if (!sources.length) return "Ingen dbt-metadata er lastet — si at variabelnavn er uverifiserte.";
   const byRegister = new Map<string, string[]>();
   for (const s of sources) {
-    const line = `${s.name} (${s.columns.length} kolonner)${s.description ? " – " + s.description.split("\n")[0].slice(0, 110) : ""}`;
+    const line = `${s.kind === "model" ? "▸ " : ""}${s.name} (${s.columns.length} kolonner)${s.description ? " – " + s.description.split("\n")[0].slice(0, 110) : ""}`;
     byRegister.set(s.register, [...(byRegister.get(s.register) ?? []), line]);
   }
   return [...byRegister.entries()]
@@ -150,7 +154,7 @@ export function buildSystem(status: SnapshotStatus): Array<{
     },
     {
       type: "text",
-      text: `TILGJENGELIGE DATAPRODUKTER (dbt 'sources' – det som kan bestilles)\n${dbtCatalogue()}`,
+      text: `TILGJENGELIGE DATAPRODUKTER (det som kan bestilles; ▸ = ferdig joinet produkt, bestill dette framfor kildetabellene)\n${dbtCatalogue()}`,
       // Cache breakpoint: everything above this is stable between requests.
       cache_control: { type: "ephemeral" },
     },

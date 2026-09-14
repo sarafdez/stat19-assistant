@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { CATALOG, MANIFEST } from "../paths.ts";
 import { matchesWord, parseQuery } from "./norsk.ts";
+import { wikiDataproduktModels } from "./wiki.ts";
 
 export type DbtColumn = {
   /** Name as SQL Server presents it (catalog.json), which is what analysts see. */
@@ -14,6 +15,8 @@ export type DbtColumn = {
 };
 export type DbtSource = {
   id: string;
+  /** A dbt `source`, or a `model` the wiki presents as a dataprodukt — see wikiDataproduktModels(). */
+  kind: "source" | "model";
   register: string;
   name: string;
   label: string;
@@ -24,6 +27,26 @@ export type DbtSource = {
   columns: DbtColumn[];
 };
 
+/**
+ * dbt `nodes` are team views — `<produkt>_<team>` — and stay out of scope. The exception is the
+ * models the wiki itself presents as dataprodukter: the joined tables teams order, and the
+ * shared code lists. Leaving them out was not a neutral omission. KprKuhr.md says "teamene
+ * søker normalt om tilgang til dataproduktet _Konsultasjon_" and MFR.md says "alle skal ha
+ * tilgang via dataproduktet SvangerskapBarn" — so for those two registers the name a team has
+ * to write on the order form existed nowhere in the tool, and the assistant fell back to naming
+ * the register, which is exactly what regler.md forbids.
+ *
+ * Which ones those are comes from the wiki, not from a list kept here: wikiDataproduktModels()
+ * returns the models its dataprodukt pages link to. The wiki is the authority on what a
+ * dataprodukt is, it stays right across snapshots, and it distinguishes cases no rule about the
+ * name could. The obvious heuristic — no `_<team>` suffix — is wrong both ways:
+ * `episodedetaljer_vw` and `diagnoserarsak_scd2` are real dataprodukter with underscores, while
+ * `forløp`, `startAndEndEpisodes` and `distinctEpisodeIntervals` have none and SykehusEPJ.md
+ * calls them "hjelpe-views". The wiki links the first two and only mentions the last three.
+ *
+ * Consequence worth knowing: loadDbt() must run after loadWiki(), and a refreshed wiki needs a
+ * loadDbt() to follow it. Without a wiki clone this set is empty and only `sources` are served.
+ */
 let sources = new Map<string, DbtSource>();
 let generatedAt: string | null = null;
 let loadError: string | null = null;
@@ -33,7 +56,7 @@ let loadError: string | null = null;
  * source.fida.<register>.<table>), `manifest.docs` (the shared variable descriptions, used only
  * where a dataprodukt describes nothing itself — see describe() below), and `catalog.sources`
  * for the real SQL column names and types. `manifest.nodes` holds the per-team views, which
- * CLAUDE.md says to ignore, and stays unread.
+ * regler.md says to ignore; only the models the wiki links as dataprodukter are read from it.
  */
 export function loadDbt(): void {
   sources = new Map();
@@ -97,6 +120,7 @@ export function loadDbt(): void {
       }
       sources.set(id, {
         id,
+        kind: "source",
         register: node.source_name,
         name: node.name,
         label: `${node.source_name}.${node.name}`,
@@ -104,6 +128,51 @@ export function loadDbt(): void {
         identifier: node.identifier,
         description: (node.description ?? "").trim(),
         registerDescription: (node.source_description ?? "").trim(),
+        columns: merged,
+      });
+    }
+    // The models the wiki links as dataprodukter. Same column merge, but the register comes from the model's schema
+    // (KprKuhr, MFR, SykehusEPJ, DÅR) and the display name from its alias, so a team reads
+    // "KprKuhr.Konsultasjon" — the name it orders — rather than a lowercase dbt identifier.
+    for (const name of wikiDataproduktModels()) {
+      const id = `model.fida.${name}`;
+      const node = manifest.nodes?.[id];
+      if (!node || node.resource_type !== "model") continue;
+      const register = String(node.schema ?? "").toLowerCase();
+      const catColumns: Record<string, any> = catalog.nodes?.[id]?.columns ?? {};
+      const docColumns: Record<string, any> = node.columns ?? {};
+      const docByLower = new Map(Object.entries(docColumns).map(([k, v]) => [k.toLowerCase(), { key: k, value: v }]));
+      const merged: DbtColumn[] = [];
+      const seen = new Set<string>();
+      for (const [catName, catValue] of Object.entries(catColumns)) {
+        const doc = docByLower.get(catName.toLowerCase());
+        seen.add(catName.toLowerCase());
+        merged.push({
+          name: catName,
+          codeName: doc && doc.key !== catName ? doc.key : null,
+          type: catValue?.type ?? null,
+          ...describe(register, catName, (doc?.value?.description ?? "").trim()),
+        });
+      }
+      for (const [lower, doc] of docByLower) {
+        if (seen.has(lower)) continue;
+        merged.push({
+          name: doc.key,
+          codeName: null,
+          type: null,
+          ...describe(register, doc.key, (doc.value?.description ?? "").trim()),
+        });
+      }
+      sources.set(id, {
+        id,
+        kind: "model",
+        register,
+        name: node.alias ?? node.name,
+        label: `${node.schema}.${node.alias ?? node.name}`,
+        schema: node.schema,
+        identifier: node.alias ?? node.name,
+        description: (node.description ?? "").trim(),
+        registerDescription: "",
         columns: merged,
       });
     }
@@ -212,7 +281,12 @@ export function searchDbtDetailed(query: string, limit = 10): DbtSearchResult {
   // perfect score would be — otherwise adding a synonym to the map lowers every score.
   const perfect = Math.max(terms.length, 1) * (WEIGHTS.name + WEIGHTS.register + MAX_COLUMN_POINTS_PER_TERM);
   for (const hit of hits) hit.score = Math.min(1, hit.raw / Math.max(perfect, 1));
-  hits.sort((a, b) => b.raw - a.raw);
+  // A term that every dataprodukt carries — `fnr_hash` above all — leaves most of the field tied
+  // on raw points, and a tie used to be broken by nothing but Map insertion order. Break it on
+  // breadth instead: at equal evidence the larger dataprodukt is the more useful first answer,
+  // and the order stops shifting when an unrelated product is added to the snapshot.
+  const columnCount = new Map([...sources.values()].map((s) => [s.id, s.columns.length]));
+  hits.sort((a, b) => b.raw - a.raw || (columnCount.get(b.id) ?? 0) - (columnCount.get(a.id) ?? 0));
 
   const confident = hits.filter((h) => h.score >= CONFIDENCE_FLOOR && h.raw >= MIN_RAW);
   return confident.length
