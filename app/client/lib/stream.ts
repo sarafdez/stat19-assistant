@@ -26,6 +26,13 @@ export async function streamChat(
     attachments: Attachment[];
     model: string;
     effort: string;
+    /**
+     * Which chat window this is. The server keeps the real message blocks — tool calls and
+     * their results — under this id, because `history` can only ever be the prose: the browser
+     * is never sent a tool result, so a history rebuilt here would hand the model its own
+     * unverified claims back as fact.
+     */
+    conversationId: string;
   },
   handlers: StreamHandlers,
   signal?: AbortSignal,

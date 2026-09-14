@@ -117,6 +117,9 @@ export default function Chat({
   model: string;
   effort: string;
 }) {
+  // One id per mounted chat window. "Ny samtale" remounts Chat with a fresh key, so a new
+  // conversation gets a new id and none of the previous turns carry over.
+  const [conversationId] = useState(() => crypto.randomUUID());
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState<Attachment[]>([]);
@@ -136,6 +139,9 @@ export default function Chat({
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
+
+  // Release the server-side blocks when the window goes away, rather than waiting for the LRU.
+  useEffect(() => () => void api.forget(conversationId), [conversationId]);
 
   const attach = async (files: File[]) => {
     if (!files.length) return;
@@ -171,7 +177,7 @@ export default function Chat({
     abort.current = new AbortController();
     try {
       await streamChat(
-        { message: trimmed, history, attachments, model, effort },
+        { message: trimmed, history, attachments, model, effort, conversationId },
         {
           onText: (delta) => patchLast((m) => ({ ...m, content: m.content + delta })),
           onThinking: (delta) => patchLast((m) => ({ ...m, thinking: (m.thinking ?? "") + delta })),

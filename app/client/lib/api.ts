@@ -80,6 +80,14 @@ export const api = {
   dbtSearch: (q: string) => json<DbtHit[]>(`/api/dbt/search?q=${encodeURIComponent(q)}`),
   dbtSource: (id: string) => json<DbtSource>(`/api/dbt/source?id=${encodeURIComponent(id)}`),
   dbtSources: () => json<DbtSummary[]>("/api/dbt/sources"),
+  /** Tell the server to drop the stored message blocks for a chat window that is going away. */
+  forget: (conversationId: string) =>
+    fetch("/api/forget", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversationId }),
+      keepalive: true,
+    }).catch(() => undefined),
   saveDraft: (name: string, content: string) =>
     json<{ path: string; absolute: string }>("/api/save", {
       method: "POST",

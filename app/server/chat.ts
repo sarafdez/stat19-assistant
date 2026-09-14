@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
+import { loadConversation, saveConversation } from "./conversation.ts";
 import { estimateCost, modelParams, resolveEffort, resolveModel } from "./models.ts";
 import { buildSystem } from "./prompt.ts";
 import { getDbtSource, listDbtSources, searchDbtDetailed } from "./sources/dbt.ts";
@@ -357,13 +358,23 @@ export async function streamChat(
   modelId?: string,
   effortId?: string,
   signal?: AbortSignal,
+  conversationId?: string,
 ): Promise<void> {
   const status = await getStatus();
   const model = resolveModel(modelId);
   const effort = resolveEffort(effortId);
 
+  /**
+   * Prefer the stored blocks: they carry the tool_use/tool_result pairs, so the model can see
+   * which of its earlier statements came from a lookup and which it produced unaided. The
+   * client's `history` is prose only — the browser is never sent tool results — so replaying it
+   * hands the model its own guesses back as settled fact. Fall back to it only when there is
+   * nothing stored (server restarted, or the CLI, which keeps no store).
+   */
+  const stored = loadConversation(conversationId);
   const messages: Anthropic.Beta.BetaMessageParam[] = [
-    ...history.map((t) => ({ role: t.role, content: t.content }) as Anthropic.Beta.BetaMessageParam),
+    ...(stored ??
+      history.map((t) => ({ role: t.role, content: t.content }) as Anthropic.Beta.BetaMessageParam)),
     { role: "user", content: userContent(message, attachments) },
   ];
 
@@ -396,6 +407,9 @@ export async function streamChat(
     }
 
     const final = await runner.done();
+    // params.messages is the runner's own accumulated array: every assistant turn and every
+    // tool_result it generated, in order. Storing it is what lets the next turn audit this one.
+    saveConversation(conversationId, [...runner.params.messages]);
     emit({
       type: "done",
       model: model.id,

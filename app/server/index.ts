@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import multer from "multer";
 import { streamChat, type Attachment, type ChatEvent, type ChatTurn } from "./chat.ts";
+import { forgetConversation } from "./conversation.ts";
 import { EFFORTS, MODELS } from "./models.ts";
 import { PORT, ROOT, WIKI_ATTACHMENTS, describePaths } from "./paths.ts";
 import { rulesStatus } from "./prompt.ts";
@@ -93,6 +94,12 @@ app.post("/api/upload", upload.array("files", 6), async (req, res) => {
   }
 });
 
+// The user started a new chat: drop the stored blocks rather than leave them for the LRU.
+app.post("/api/forget", (req, res) => {
+  forgetConversation((req.body as { conversationId?: string }).conversationId);
+  res.json({ ok: true });
+});
+
 app.post("/api/save", (req, res) => {
   const { name, content } = req.body as { name?: string; content?: string };
   try {
@@ -104,12 +111,15 @@ app.post("/api/save", (req, res) => {
 });
 
 app.post("/api/chat", async (req, res) => {
-  const { message, history = [], attachments = [], model, effort } = req.body as {
+  const { message, history = [], attachments = [], model, effort, conversationId } = req.body as {
     message?: string;
     history?: ChatTurn[];
     attachments?: Attachment[];
     model?: string;
     effort?: string;
+    // Identifies the chat window, so the server can replay the real message blocks — tool calls
+    // and their results — instead of the prose-only `history` the browser can reconstruct.
+    conversationId?: string;
   };
   if (!message?.trim() && attachments.length === 0) {
     return res.status(400).json({ error: "Tom melding." });
@@ -132,7 +142,7 @@ app.post("/api/chat", async (req, res) => {
   };
 
   try {
-    await streamChat(emit, history, message ?? "", attachments, model, effort, aborted.signal);
+    await streamChat(emit, history, message ?? "", attachments, model, effort, aborted.signal, conversationId);
   } catch (err) {
     console.error("chat failed:", err);
   } finally {
