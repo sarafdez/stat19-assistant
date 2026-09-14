@@ -34,6 +34,14 @@ VERKTØY (reglene under GRUNNLAGET sier hva du skal slå opp; dette er hvordan)
   Send alltid med query til read_wiki_page – store sider kommer som utdrag, og query velger
   avsnittene. Mangler du noe, kall igjen med sections=['nr']; full=true bare når du faktisk
   trenger hele siden.
+- Dekningsperiode aldri fra et utdrag. Sier svaret «UTDRAG: n av m avsnitt», har du ikke sett
+  hele siden, og da kan du ikke oppgi hvilke år et dataprodukt dekker med mindre datoen står
+  ordrett i teksten du fikk. Står den ikke der, kall read_wiki_page igjen med full=true. Å lese
+  sida på nytt koster lite; en oppdiktet dekningsperiode er den dyreste feilen du kan gjøre.
+- Gjenbruk aldri et faktum fra en tidligere tur i samtalen som om det var verifisert. Du ser dine
+  egne tidligere svar, men ikke oppslagene som lå bak dem – en påstand uten kilde i teksten kan
+  like gjerne være noe du selv gjettet, eller noe brukeren nevnte om en annen kilde. Slå den opp
+  på nytt før du bygger videre på den.
 - dbt: search_dbt finner dataproduktet; get_dbt_source gir hele kolonnelista. Søket ser bare
   kolonnenavn og de beskrivelsene som finnes (de fleste kolonner er udokumentert i dbt), så et
   søk på «ventetid» finner ikke ansienDato. Har du funnet dataproduktet, hent kolonnelista med

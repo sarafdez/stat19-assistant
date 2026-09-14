@@ -207,12 +207,26 @@ export function wikiStats() {
 // so the model gets relevant sections plus an outline of the rest, and asks for
 // more by section number. The browser panel still gets the full page.
 
-const SMALL_PAGE = 4_000; // below this, excerpting saves nothing
 const EXCERPT_BUDGET = 8_000; // chars of section text per read
+/**
+ * Below this the whole page goes back. It must never be smaller than EXCERPT_BUDGET: a page the
+ * excerpter is allowed to spend 8k chars on costs no more read whole, so excerpting it can only
+ * lose text for nothing. It stood at 4k, which is why KprKuhr.md (6.2k chars) came back as a
+ * 74-character intro with the coverage period cut out.
+ */
+const SMALL_PAGE = EXCERPT_BUDGET;
 const FULL_PAGE_CAP = 60_000;
 const INTRO_CAP = 1_200;
 /** Sections the wiki convention puts caveats in — always worth including. */
 const ALWAYS = /begrensning|dekning|kvalitet|viktig|oppdater|periode|historikk/i;
+/**
+ * Coverage statements — which years a dataprodukt actually holds — are the one fact regler.md
+ * forbids guessing, and on most source pages they sit under a heading ALWAYS does not match
+ * ("Generelt om MFR", "Daglige dataprodukter", "NPR i Stat19"). Match the sentence shape in the
+ * body instead, so the period travels with the page however the heading is worded.
+ */
+const COVERAGE =
+  /tilbake til \d|tilbake fra \d|fra og med \d|siden \d|t\.o\.m\.|leveres data fra|periode \d{4}|data fra \d{4}|fra \d{1,2}\.\d{1,2}\.\d{4}|pr\.\s*\S+\s+har vi|tilgjengelige fra/i;
 
 type Section = { index: number; level: number; heading: string | null; text: string };
 
@@ -295,17 +309,25 @@ export function readWikiPageForModel(
   } else {
     const terms = (opts.query ?? "").toLowerCase().split(/\s+/).filter((t) => t.length > 2);
     const intro = all.filter((sec) => sec.heading === null);
-    const always = all.filter((sec) => sec.heading && ALWAYS.test(sec.heading));
-    const ranked = all
+    const always = all.filter(
+      (sec) => (sec.heading && ALWAYS.test(sec.heading)) || COVERAGE.test(sec.text),
+    );
+    const scored = all
       .filter((sec) => !intro.includes(sec) && !always.includes(sec))
       .map((sec) => ({ sec, score: scoreSection(sec, terms) }))
-      .sort((a, b) => b.score - a.score)
-      .filter((entry) => (terms.length ? entry.score > 0 : true))
-      .map((entry) => entry.sec);
+      .sort((a, b) => b.score - a.score);
+    const ranked = scored.filter((entry) => (terms.length ? entry.score > 0 : true)).map((entry) => entry.sec);
+    // Sections the query did not touch, in page order. They are reached only once everything
+    // relevant has been paid for, and they stop an unlucky query from returning an outline and
+    // nothing else while most of the budget goes unspent.
+    const rest = scored
+      .filter((entry) => !ranked.includes(entry.sec))
+      .map((entry) => entry.sec)
+      .sort((a, b) => a.index - b.index);
 
     chosen = [];
     let budget = EXCERPT_BUDGET;
-    for (const sec of [...intro, ...always, ...ranked]) {
+    for (const sec of [...intro, ...always, ...ranked, ...rest]) {
       const cost = sec.heading === null ? Math.min(sec.text.length, INTRO_CAP) : sec.text.length;
       if (chosen.length && cost > budget) continue;
       chosen.push(sec);

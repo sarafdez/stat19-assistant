@@ -2,12 +2,13 @@
  * Retrieval eval: `npm run eval` from app/.
  *
  * Reports recall on real questions and, just as importantly, whether queries with no answer
- * in Stat19 are reported as weak rather than as confident noise.
+ * in Stat19 are reported as weak rather than as confident noise. Then checks the page reads:
+ * ranking the right page first is worthless if the excerpt drops the answer on the way back.
  */
 import "../env.ts";
 import { loadDbt, searchDbtDetailed } from "../sources/dbt.ts";
-import { loadWiki, searchWikiDetailed } from "../sources/wiki.ts";
-import { CASES } from "./fixture.ts";
+import { loadWiki, readWikiPageForModel, searchWikiDetailed } from "../sources/wiki.ts";
+import { CASES, READ_CASES } from "./fixture.ts";
 
 loadWiki();
 loadDbt();
@@ -73,7 +74,29 @@ for (const testCase of CASES) {
 }
 
 console.log(`\n${c.bold}${pass}/${pass + fail} saker${c.off}`);
-if (fail) {
-  console.log(`${c.red}${fail} feilet${c.off}`);
+
+// Page reads: does the text the model actually receives still contain the coverage period?
+console.log(`\n${c.bold}Sideoppslag${c.off}\n`);
+let readPass = 0;
+let readFail = 0;
+for (const testCase of READ_CASES) {
+  const read = readWikiPageForModel(testCase.page, { query: testCase.query });
+  const missing = testCase.must.filter((needle) => !read.text.includes(needle));
+  const ok = missing.length === 0;
+  ok ? readPass++ : readFail++;
+  const page = testCase.page.split("/").at(-1);
+  console.log(
+    `${ok ? c.green + "✔" : c.red + "✖"}${c.off} ${page} "${testCase.query}" ` +
+      `${c.dim}(${read.mode} ${read.returned}/${read.total}, ${read.text.length} tegn)${c.off}`,
+  );
+  if (!ok) {
+    console.log(`   ${c.red}mangler: ${missing.join(", ")}${c.off}`);
+    failures.push(`${page} "${testCase.query}": mangler ${missing.join(", ")}`);
+  }
+}
+console.log(`\n${c.bold}${readPass}/${readPass + readFail} sideoppslag${c.off}`);
+
+if (fail || readFail) {
+  console.log(`${c.red}${fail + readFail} feilet${c.off}`);
   process.exit(1);
 }

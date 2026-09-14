@@ -67,3 +67,38 @@ export const CASES: Case[] = [
   { query: "innvandrerbakgrunn", nothing: true }, // fødeland/innvandringsgrunn is SSB, not Stat19
   { query: "boligpriser i Oslo", nothing: true },
 ];
+
+/**
+ * Page-read fixture. Ranking is only half the retrieval: a search can put the right page on
+ * top and the read can still hand back an excerpt with the answer cut out of it. That is not
+ * hypothetical — readWikiPageForModel() used to return KprKuhr.md as a 74-character intro,
+ * because the coverage period sits under "Daglige dataprodukter", a heading none of the
+ * ALWAYS words match, and the query terms appear nowhere on the page.
+ *
+ * Every case here asserts the one kind of fact regler.md forbids guessing: which years a
+ * dataprodukt covers. The query is written the way the model actually asks, not the way that
+ * happens to score well.
+ */
+export type ReadCase = {
+  page: string;
+  query: string;
+  /** Substrings that must survive into the text the model receives. */
+  must: string[];
+};
+
+const SOURCE = "Dataprodukter-i-Stat19/";
+
+export const READ_CASES: ReadCase[] = [
+  { page: SOURCE + "KprKuhr.md", query: "dekningsperiode", must: ["1.1.2017"] },
+  // The query from the session that exposed the bug — none of its words are on the page.
+  { page: SOURCE + "KprKuhr.md", query: "KprKuhr coverage dekning kommuner", must: ["1.1.2017"] },
+  { page: SOURCE + "MFR.md", query: "dekningsperiode", must: ["tilbake til 1.1.2015"] },
+  { page: SOURCE + "NPR.md", query: "dekningsperiode", must: ["01.01.2015", "31.12.2025"] },
+  { page: SOURCE + "LMR-Legemiddelregisteret.md", query: "dekningsperiode", must: ["1.1.2004"] },
+  { page: SOURCE + "MSIS-Labdatabasen.md", query: "urinkultur agens", must: ["2.10.2022"] },
+  { page: SOURCE + "SYSVAK.md", query: "dekningsperiode", must: ["1.10.2018"] },
+  { page: SOURCE + "DÅR.md", query: "dekningsperiode", must: ["30.7.2025"] },
+  // Genuinely too big to send whole, so it still comes back as an excerpt — the point is that
+  // the coverage sentence travels with the excerpt rather than being ranked away.
+  { page: SOURCE + "SykehusEPJ.md", query: "dekningsperiode", must: ["01.01.2020"] },
+];
