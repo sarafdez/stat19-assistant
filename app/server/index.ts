@@ -45,9 +45,6 @@ app.get("/api/status", async (_req, res) => {
 app.post("/api/refresh/wiki", async (_req, res) => {
   const result = await pullWiki();
   loadWiki();
-  // Which dbt models count as dataprodukter is read off the wiki's own links, so a pull that
-  // adds or renames one only takes effect once dbt is rebuilt against the new pages.
-  loadDbt();
   res.json({ ...result, status: await getStatus() });
 });
 

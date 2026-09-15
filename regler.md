@@ -13,20 +13,22 @@ søketreff kan stoles på.
 
 1. Start i wikiens dataproduktbeskrivelser (`Dataprodukter-i-Stat19/`). Dette er hovedkilden til
    hva et dataprodukt er, hvilken periode det dekker og hvilke begrensninger som gjelder.
-2. Gå deretter til dbt for de faktiske navnene. Dataproduktene ligger under `sources`
-   (`source.fida.<register>.<tabell>`). Det er disse teamene bestiller fra, og det er disse
-   navnene som skal brukes. Den fullstendige lista over hvilke som finnes får du oppgitt
-   direkte — ikke gjett, og ikke gå etter et antall du har sett før.
-3. Noen dataprodukter er ferdig joinede tabeller framfor rå kildetabeller – Konsultasjon
-   (KPR-KUHR), SvangerskapBarn (MFR), Pasientforløp og EpisodeDetaljer (SykehusEPJ),
-   diagnoserArsak_SCD2 (DÅR). Der et slikt produkt finnes, er det DET teamet bestiller – ikke
-   registeret og ikke tabellene under. Kildesiden i wikien sier hvilket navn som gjelder.
-   Kodelistene (icdKode, icpcKode, prosedyreKode, legemiddelKode) hører med her: bruk dem til å
-   bekrefte kodeverk og kodebetydning framfor å gjengi koder fra hukommelsen.
-4. Øvrige dbt `nodes` (`model.fida.<produkt>_<team>`) er team-views – det det enkelte teamet har
-   fått tilpasset. De er bevisst holdt utenfor og skal ikke foreslås eller nevnes som dataprodukt.
-   Trenger du å vite hva et bestemt team faktisk har tilgang til, står det i teamets protokoll
-   under `Statistikkteam/`.
+2. Gå deretter til dbt for de faktiske navnene. dbt deler selv modellene i tre kategorier, og
+   sier det i hver models `fqn`: `data-products` er det teamene bestiller, `preliminary-objects`
+   er mellom-utregninger (wikien kaller dem «hjelpe-views»), og `team-views` er det enkelte
+   teamets tilpasning. Bare den første er et dataprodukt. Ikke utled kategorien av navnet – et
+   produkt kan hete `diagnoserArsak_SCD2`, og en mellom-utregning kan hete `forløp`.
+   Kodelistene (icdKode, icpcKode, prosedyreKode, legemiddelKode) er dataprodukter og brukes til
+   å bekrefte kodeverk og kodebetydning framfor å gjengi koder fra hukommelsen.
+3. For registre uten data-products er dbt `sources` (`source.fida.<register>.<tabell>`) selve
+   dataproduktet – typisk labdatabasene, LMR, MSIS og Risikogrupper. For de øvrige er
+   kildetabellen en byggekloss: NPRs kildetabeller ligger i landingsskjemaet `import` og bygges
+   om til dataprodukter i registerets eget skjema, og KPR-KUHRs Diagnose, Regning og Takst gis
+   normalt ikke ut alene. Lista du får oppgitt merker hva som er hva. Bestill det merkede
+   produktet, og nevn kildetabellen bare som byggekloss.
+4. `team-views` er det det enkelte teamet har fått tilpasset. De er bevisst holdt utenfor og skal
+   ikke foreslås eller nevnes som dataprodukt. Trenger du å vite hva et bestemt team faktisk har
+   tilgang til, står det i teamets protokoll under `Statistikkteam/`.
 5. Andre deler av wikien (Juridisk, prosess, protokoller) brukes til formål, hjemmel, tidslinjer og
    eksempler – ikke til å avgjøre hvilke variabler som finnes.
 6. Oppgi hvor hvert faktum kommer fra: wiki-sidens navn, eller dataproduktnavnet i dbt.

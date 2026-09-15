@@ -46,20 +46,6 @@ const pages = new Map<string, Page>();
 let index: MiniSearch<Page> | null = null;
 let loadError: string | null = null;
 
-/**
- * dbt models the dataprodukt pages link to as `#!/model/model.fida.<navn>`, and the slugs of the
- * teams that have their own views. Collected while the pages are being read anyway.
- *
- * These two sets are how dbt.ts decides which `nodes` are dataprodukter, instead of a list
- * written out by hand. The wiki is already the authority on what a dataprodukt is (regler.md,
- * GRUNNLAGET 1), and it marks them in a way that survives the next pull: a product a team can
- * order gets a link to its dbt page, while an internal step is only named in backticks — the
- * SykehusEPJ page links Pasientforløp and prosedyreKode, but merely mentions `forløp`,
- * `startAndEndEpisodes` and `distinctEpisodeIntervals` as "hjelpe-views". Deriving it also picks
- * up products a hand-written list would miss, such as SYSVAK's vaksinasjoner_*.
- */
-const linkedModels = new Set<string>();
-const teamSlugs = new Set<string>();
 
 /**
  * Azure DevOps wiki filenames use `-` for spaces and percent-encode punctuation
@@ -94,8 +80,6 @@ function walk(dir: string, out: string[] = []): string[] {
 
 export function loadWiki(): void {
   pages.clear();
-  linkedModels.clear();
-  teamSlugs.clear();
   loadError = null;
   if (!fs.existsSync(WIKI_DIR)) {
     loadError = `Fant ikke wiki-klonen på ${WIKI_DIR}`;
@@ -106,23 +90,6 @@ export function loadWiki(): void {
     const id = path.relative(WIKI_DIR, file);
     const raw = fs.readFileSync(file, "utf8");
     const text = indexableText(raw);
-    // Read from the raw markdown: indexableText() strips the link targets we are after. Only the
-    // per-source pages inside the folder count — the Dataprodukter-i-Stat19.md overview page
-    // sitting beside it explains the four levels of dbt object and links one example of each,
-    // "Mellom-utregninger" and team views included, so its links say nothing about status.
-    if (id.startsWith(`Dataprodukter-i-Stat19${path.sep}`)) {
-      for (const link of raw.matchAll(/model\.fida\.([A-Za-z0-9_%]+)/g)) {
-        let name = link[1];
-        try {
-          name = decodeURIComponent(name);
-        } catch {
-          // A stray % in a wiki link is not worth failing the load over; keep the raw name.
-        }
-        linkedModels.add(name.toLowerCase());
-      }
-    }
-    const team = /^Statistikkteam[/\\]Team-([^/\\]+)\.md$/.exec(id);
-    if (team) teamSlugs.add(team[1].toLowerCase());
     pages.set(id, {
       id,
       title: prettify(path.basename(id)),
@@ -230,20 +197,6 @@ export function listWikiPages(): WikiEntry[] {
       section: p.breadcrumb[0] ?? p.title,
     }))
     .sort((a, b) => a.section.localeCompare(b.section, "nb") || a.title.localeCompare(b.title, "nb"));
-}
-
-/**
- * The dbt models the wiki presents as dataprodukter: linked from a dataprodukt page, and not a
- * per-team view. Team views appear on these pages too, as worked examples of a lineage graph
- * (`DÅR_Person_Alvi`), so drop anything ending in a team's slug — or in its last segment, since
- * dbt shortens `vaxeff_vvp` to `_vvp`.
- */
-export function wikiDataproduktModels(): string[] {
-  const suffixes = [...teamSlugs].flatMap((slug) => {
-    const tail = slug.split("_").at(-1)!;
-    return tail === slug ? [slug] : [slug, tail];
-  });
-  return [...linkedModels].filter((name) => !suffixes.some((suffix) => name.endsWith(`_${suffix}`)));
 }
 
 export function wikiStats() {

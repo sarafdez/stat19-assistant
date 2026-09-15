@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import { CATALOG, MANIFEST } from "../paths.ts";
 import { matchesWord, parseQuery } from "./norsk.ts";
-import { wikiDataproduktModels } from "./wiki.ts";
 
 export type DbtColumn = {
   /** Name as SQL Server presents it (catalog.json), which is what analysts see. */
@@ -15,7 +14,7 @@ export type DbtColumn = {
 };
 export type DbtSource = {
   id: string;
-  /** A dbt `source`, or a `model` the wiki presents as a dataprodukt — see wikiDataproduktModels(). */
+  /** A dbt `source`, or a `model` dbt files under `data-products`. */
   kind: "source" | "model";
   /**
    * dbt says this table is not handed out on its own — the data is ordered through a joined
@@ -35,27 +34,36 @@ export type DbtSource = {
 };
 
 /**
- * dbt `nodes` are team views — `<produkt>_<team>` — and stay out of scope. The exception is the
- * models the wiki itself presents as dataprodukter: the joined tables teams order, and the
- * shared code lists. Leaving them out was not a neutral omission. KprKuhr.md says "teamene
- * søker normalt om tilgang til dataproduktet _Konsultasjon_" and MFR.md says "alle skal ha
- * tilgang via dataproduktet SvangerskapBarn" — so for those two registers the name a team has
- * to write on the order form existed nowhere in the tool, and the assistant fell back to naming
- * the register, which is exactly what regler.md forbids.
+ * dbt states which models are dataprodukter, so read it rather than infer it. Every model's
+ * `fqn` is ["fida", "beredt-models", <category>, …], and the project has exactly three
+ * categories: `data-products` (what a team orders), `preliminary-objects` (the intermediate
+ * calculations the wiki calls "hjelpe-views") and `team-views` (one folder per team, with the
+ * team name in fqn[3]). Only the first is served here.
  *
- * Which ones those are comes from the wiki, not from a list kept here: wikiDataproduktModels()
- * returns the models its dataprodukt pages link to. The wiki is the authority on what a
- * dataprodukt is, it stays right across snapshots, and it distinguishes cases no rule about the
- * name could. The obvious heuristic — no `_<team>` suffix — is wrong both ways:
- * `episodedetaljer_vw` and `diagnoserarsak_scd2` are real dataprodukter with underscores, while
- * `forløp`, `startAndEndEpisodes` and `distinctEpisodeIntervals` have none and SykehusEPJ.md
- * calls them "hjelpe-views". The wiki links the first two and only mentions the last three.
- *
- * Consequence worth knowing: loadDbt() must run after loadWiki(), and a refreshed wiki needs a
- * loadDbt() to follow it. Without a wiki clone this set is empty and only `sources` are served.
+ * This replaced two weaker signals. Scanning the wiki for `model.fida.<navn>` links got the
+ * shape right but the details wrong: it missed twenty real dataprodukter that no source page
+ * happens to link — som_hoved, bup_hoved, vaksinasjoner_kikhoste — and it wrongly included
+ * `episodedetaljer_vw`, which SykehusEPJ.md links but dbt files under preliminary-objects (the
+ * dataprodukt is `episodedetaljer`). Guessing from the name is worse still: `forløp`,
+ * `startAndEndEpisodes` and `distinctEpisodeIntervals` carry no team suffix and are all
+ * preliminary, while `diagnoserarsak_scd2` has one and is a dataprodukt.
  */
+const DATA_PRODUCTS = "data-products";
+
 /** dbt's standing phrase for a table that is only reachable through a joined dataprodukt. */
-const RESTRICTED = /gis det normalt ikke tilgang|tilgang til disse dataene gis gjennom/i;
+const RESTRICTED =
+  /gis det normalt ikke tilgang|tilgang til .{0,20}data\w* gis gjennom|i praksis ikke brukes/i;
+/**
+ * NPR's source tables are the only ones dbt puts in a schema of their own, `import`, and every
+ * one of them is rebuilt as a data-product in the `NPR` schema with the same columns —
+ * `npr.npr_som_hoved` (import, 199 columns) against `NPR.som_hoved` (NPR, 199 columns). Listing
+ * both as orderable shows the same table twice and points teams at the landing copy. Treat the
+ * landing schema as a building block.
+ *
+ * Note this is read off the schema name, not declared the way the model categories are. If a
+ * register other than NPR ever lands in `import`, check it before trusting the mark.
+ */
+const LANDING_SCHEMA = "import";
 
 let sources = new Map<string, DbtSource>();
 let generatedAt: string | null = null;
@@ -66,7 +74,7 @@ let loadError: string | null = null;
  * source.fida.<register>.<table>), `manifest.docs` (the shared variable descriptions, used only
  * where a dataprodukt describes nothing itself — see describe() below), and `catalog.sources`
  * for the real SQL column names and types. `manifest.nodes` holds the per-team views, which
- * regler.md says to ignore; only the models the wiki links as dataprodukter are read from it.
+ * regler.md says to ignore; only the `data-products` models are read from it.
  */
 export function loadDbt(): void {
   sources = new Map();
@@ -132,7 +140,8 @@ export function loadDbt(): void {
       sources.set(id, {
         id,
         kind: "source",
-        restricted: RESTRICTED.test(ownDescription),
+        restricted:
+          RESTRICTED.test(ownDescription) || String(node.schema ?? "").toLowerCase() === LANDING_SCHEMA,
         register: node.source_name,
         name: node.name,
         label: `${node.source_name}.${node.name}`,
@@ -143,14 +152,13 @@ export function loadDbt(): void {
         columns: merged,
       });
     }
-    // The models the wiki links as dataprodukter. Same column merge, but the register comes from the model's schema
+    // The data-products. Same column merge, but the register comes from the model's schema
     // (KprKuhr, MFR, SykehusEPJ, DÅR) and the display name from its alias, so a team reads
     // "KprKuhr.Konsultasjon" — the name it orders — rather than a lowercase dbt identifier.
-    for (const name of wikiDataproduktModels()) {
-      const id = `model.fida.${name}`;
-      const node = manifest.nodes?.[id];
-      if (!node || node.resource_type !== "model") continue;
+    for (const [id, node] of Object.entries<any>(manifest.nodes ?? {})) {
+      if (node?.resource_type !== "model" || node?.fqn?.[2] !== DATA_PRODUCTS) continue;
       const register = String(node.schema ?? "").toLowerCase();
+      if (!register) continue;
       const catColumns: Record<string, any> = catalog.nodes?.[id]?.columns ?? {};
       const docColumns: Record<string, any> = node.columns ?? {};
       const docByLower = new Map(Object.entries(docColumns).map(([k, v]) => [k.toLowerCase(), { key: k, value: v }]));
@@ -244,7 +252,15 @@ const CONFIDENCE_FLOOR = 0.1;
  * a 199-column table won every query by sheer width.
  */
 const WEIGHTS = { name: 6, register: 4, description: 2, column: 3, columnDescription: 1 };
-const MAX_COLUMN_POINTS_PER_TERM = 9;
+/**
+ * Must stay below WEIGHTS.name: a dataprodukt whose own name is the search term is the strongest
+ * signal there is, and at a cap of 9 against a name worth 6 it lost to any wide table with three
+ * columns mentioning the word. That buried SykehusEPJ.icpcKode — the ICPC-2 code list — under
+ * NPR's *_koder tables on "ICPC-2 kodeverk". Capped here rather than by raising `name`, because
+ * `name` also sets the perfect score every hit is normalised against: inflating it drags every
+ * query's score down and tips borderline-but-real ones into "weak".
+ */
+const MAX_COLUMN_POINTS_PER_TERM = 5;
 /** Synonym hits count, but never enough to outrank a page that uses the word itself. */
 const EXPANSION_FACTOR = 0.5;
 
@@ -297,10 +313,14 @@ export function searchDbtDetailed(query: string, limit = 10): DbtSearchResult {
   for (const hit of hits) hit.score = Math.min(1, hit.raw / Math.max(perfect, 1));
   // A term that every dataprodukt carries — `fnr_hash` above all — leaves most of the field tied
   // on raw points, and a tie used to be broken by nothing but Map insertion order. Break it on
-  // breadth instead: at equal evidence the larger dataprodukt is the more useful first answer,
-  // and the order stops shifting when an unrelated product is added to the snapshot.
-  const columnCount = new Map([...sources.values()].map((s) => [s.id, s.columns.length]));
-  hits.sort((a, b) => b.raw - a.raw || (columnCount.get(b.id) ?? 0) - (columnCount.get(a.id) ?? 0));
+  // what the team can actually order: a data-product ahead of a source table, and a source that
+  // is handed out ahead of one dbt holds back. Ties beyond that stay in snapshot order; NPR's
+  // som/bup/phv/tsb products are near-identical, so a query like "ventetid" genuinely cannot
+  // separate them and no tie-break should pretend otherwise.
+  const rank = new Map(
+    [...sources.values()].map((s) => [s.id, s.kind === "model" ? 0 : s.restricted ? 2 : 1] as const),
+  );
+  hits.sort((a, b) => b.raw - a.raw || (rank.get(a.id) ?? 1) - (rank.get(b.id) ?? 1));
 
   const confident = hits.filter((h) => h.score >= CONFIDENCE_FLOOR && h.raw >= MIN_RAW);
   return confident.length

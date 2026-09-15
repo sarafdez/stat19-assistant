@@ -24,8 +24,10 @@ export type Case = {
 
 export const CASES: Case[] = [
   // ── real domain questions ────────────────────────────────────────────────────
-  { query: "ventetid", dbt: ["npr_som_hoved"], wiki: ["NPR"] },
-  { query: "hvor lenge venter pasienter på behandling", dbt: ["npr_som_hoved"] },
+  // som_hoved, not npr_som_hoved: the dataprodukt is the model in the NPR schema, while the
+  // source of that name is the landing table in `import`.
+  { query: "ventetid", dbt: ["som_hoved"], wiki: ["NPR"] },
+  { query: "hvor lenge venter pasienter på behandling", dbt: ["som_hoved"] },
   { query: "abort", dbt: ["mfr"], wiki: ["Team-Abort"] },
   { query: "svangerskapsavbrudd", dbt: ["mfr"], wiki: ["Team-Abort", "MFR"] },
   { query: "fødsler", dbt: ["mfr"], wiki: ["MFR"] },
@@ -44,7 +46,10 @@ export const CASES: Case[] = [
   // Only findable because column descriptions now fall back to the register's dbt doc block:
   // `manifest.sources` describes 5 of NPR's 1 265 columns, and the word "ansiennitetsdato"
   // appears in none of them — it is the doc block for `ansienDato` that carries it.
-  { query: "ansiennitetsdato", dbt: ["npr_som_hoved"] },
+  // Only the register can be asserted here: `ansienDato` carries the same doc block in all
+  // thirteen NPR hoved/koder/prosedyredato products, which tie exactly. A fixture that named one
+  // of them would be recording an accident of iteration order, not a ranking anyone can defend.
+  { query: "ansiennitetsdato", dbt: ["npr"] },
   { query: "når ble henvisningen mottatt", dbt: ["npr", "sykehusepj"] },
 
   // ── clinical vocabulary: no dataprodukt is named after a disease, so these must land on
