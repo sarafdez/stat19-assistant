@@ -124,7 +124,8 @@ function dbtCatalogue(): string {
   if (!sources.length) return "Ingen dbt-metadata er lastet — si at variabelnavn er uverifiserte.";
   const byRegister = new Map<string, string[]>();
   for (const s of sources) {
-    const line = `${s.kind === "model" ? "▸ " : ""}${s.name} (${s.columns.length} kolonner)${s.description ? " – " + s.description.split("\n")[0].slice(0, 110) : ""}`;
+    const mark = s.kind === "model" ? "▸ " : s.restricted ? "· " : "";
+    const line = `${mark}${s.name} (${s.columns.length} kolonner)${s.description ? " – " + s.description.split("\n")[0].slice(0, 110) : ""}`;
     byRegister.set(s.register, [...(byRegister.get(s.register) ?? []), line]);
   }
   return [...byRegister.entries()]
@@ -154,7 +155,11 @@ export function buildSystem(status: SnapshotStatus): Array<{
     },
     {
       type: "text",
-      text: `TILGJENGELIGE DATAPRODUKTER (det som kan bestilles; ▸ = ferdig joinet produkt, bestill dette framfor kildetabellene)\n${dbtCatalogue()}`,
+      text:
+        `TILGJENGELIGE DATAPRODUKTER. ▸ = ferdig joinet dataprodukt, bestill dette framfor ` +
+        `kildetabellene under det. · = tabell dbt sier normalt ikke gis ut alene; nevn den som ` +
+        `byggekloss, ikke som noe teamet bestiller. Uten merke: kildetabellen er selv ` +
+        `dataproduktet, som for NPR, LMR og labdatabasene.\n${dbtCatalogue()}`,
       // Cache breakpoint: everything above this is stable between requests.
       cache_control: { type: "ephemeral" },
     },

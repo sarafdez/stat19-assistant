@@ -17,6 +17,13 @@ export type DbtSource = {
   id: string;
   /** A dbt `source`, or a `model` the wiki presents as a dataprodukt — see wikiDataproduktModels(). */
   kind: "source" | "model";
+  /**
+   * dbt says this table is not handed out on its own — the data is ordered through a joined
+   * dataprodukt instead. Only a handful of source tables carry the note (KPR-KUHR's three, and
+   * sykehusepj.data_kode), and it is dbt's own wording, not an inference from the shape of the
+   * table: for most registers the source IS what a team orders.
+   */
+  restricted: boolean;
   register: string;
   name: string;
   label: string;
@@ -47,6 +54,9 @@ export type DbtSource = {
  * Consequence worth knowing: loadDbt() must run after loadWiki(), and a refreshed wiki needs a
  * loadDbt() to follow it. Without a wiki clone this set is empty and only `sources` are served.
  */
+/** dbt's standing phrase for a table that is only reachable through a joined dataprodukt. */
+const RESTRICTED = /gis det normalt ikke tilgang|tilgang til disse dataene gis gjennom/i;
+
 let sources = new Map<string, DbtSource>();
 let generatedAt: string | null = null;
 let loadError: string | null = null;
@@ -118,9 +128,11 @@ export function loadDbt(): void {
           ...describe(node.source_name, doc.key, (doc.value?.description ?? "").trim()),
         });
       }
+      const ownDescription = (node.description ?? "").trim();
       sources.set(id, {
         id,
         kind: "source",
+        restricted: RESTRICTED.test(ownDescription),
         register: node.source_name,
         name: node.name,
         label: `${node.source_name}.${node.name}`,
@@ -166,6 +178,8 @@ export function loadDbt(): void {
       sources.set(id, {
         id,
         kind: "model",
+        // A joined dataprodukt is the thing teams order, by definition.
+        restricted: false,
         register,
         name: node.alias ?? node.name,
         label: `${node.schema}.${node.alias ?? node.name}`,

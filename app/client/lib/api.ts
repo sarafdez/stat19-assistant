@@ -49,6 +49,10 @@ export type DbtHit = {
 };
 export type DbtSource = {
   id: string;
+  /** A dbt source table, or a joined dataprodukt built from several of them. */
+  kind: "source" | "model";
+  /** dbt says this table is not handed out on its own — order the joined dataprodukt instead. */
+  restricted: boolean;
   register: string;
   name: string;
   label: string;

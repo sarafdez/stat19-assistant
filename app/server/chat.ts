@@ -265,7 +265,10 @@ function tools(emit: ChatSink) {
           (source.kind === "model"
             ? " – ferdig joinet dataprodukt (dbt model). Det er dette navnet teamet bestiller, ikke " +
               "de underliggende kildetabellene."
-            : ""),
+            : source.restricted
+              ? " – NB: dbt sier at denne tabellen normalt ikke gis ut alene. Foreslå det joinede " +
+                "dataproduktet for registeret i stedet, og nevn denne bare som byggekloss."
+              : ""),
         source.description,
         "",
         "Kolonner:",

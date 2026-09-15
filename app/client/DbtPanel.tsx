@@ -10,6 +10,7 @@ export default function DbtPanel({ fromChat }: { fromChat: PanelTarget | null })
   const [source, setSource] = useState<DbtSource | null>(null);
   const [openedByChat, setOpenedByChat] = useState(false);
   const [columnFilter, setColumnFilter] = useState("");
+  const [onlyOrderable, setOnlyOrderable] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,9 +41,18 @@ export default function DbtPanel({ fromChat }: { fromChat: PanelTarget | null })
 
   const registers = useMemo(() => {
     const grouped = new Map<string, DbtSummary[]>();
-    for (const s of all) grouped.set(s.register, [...(grouped.get(s.register) ?? []), s]);
+    for (const s of all) {
+      if (onlyOrderable && s.restricted) continue;
+      grouped.set(s.register, [...(grouped.get(s.register) ?? []), s]);
+    }
+    // Within a register: the joined dataprodukt first, the tables dbt does not hand out last.
+    // Four identical boxes for KprKuhr gave no clue that only Konsultasjon can be ordered.
+    const rank = (s: DbtSummary) => (s.kind === "model" ? 0 : s.restricted ? 2 : 1);
+    for (const items of grouped.values()) {
+      items.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, "nb"));
+    }
     return [...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0], "nb"));
-  }, [all]);
+  }, [all, onlyOrderable]);
 
   const columns = source?.columns.filter((c) =>
     columnFilter.trim() ? (c.name + " " + c.description).toLowerCase().includes(columnFilter.toLowerCase()) : true,
@@ -199,6 +209,18 @@ export default function DbtPanel({ fromChat }: { fromChat: PanelTarget | null })
           </ul>
         ) : (
           <div className="flex flex-col gap-2 pt-2">
+            <label
+              className="flex cursor-pointer items-center gap-1.5 text-[10px] select-none"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <input
+                type="checkbox"
+                checked={onlyOrderable}
+                onChange={(e) => setOnlyOrderable(e.target.checked)}
+                className="h-3 w-3"
+              />
+              Skjul tabeller som normalt ikke gis ut alene
+            </label>
             {registers.map(([register, items]) => {
               const hue = hueFor(register);
               return (
@@ -211,7 +233,13 @@ export default function DbtPanel({ fromChat }: { fromChat: PanelTarget | null })
                       {register}
                     </span>
                     <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                      {items.length} dataprodukt{items.length === 1 ? "" : "er"}
+                      {(() => {
+                        const orderable = items.filter((i) => !i.restricted).length;
+                        const held = items.length - orderable;
+                        return `${orderable} dataprodukt${orderable === 1 ? "" : "er"}${
+                          held ? ` · ${held} underliggende tabell${held === 1 ? "" : "er"}` : ""
+                        }`;
+                      })()}
                     </span>
                   </div>
                   <ul className="ml-1 flex flex-wrap gap-1">
@@ -220,9 +248,19 @@ export default function DbtPanel({ fromChat }: { fromChat: PanelTarget | null })
                         <button
                           onClick={() => open(item.id)}
                           className="rounded-md border px-2 py-1 text-[11px] transition-colors hover:bg-[var(--surface-hover)]"
-                          style={{ borderColor: "var(--border-soft)" }}
-                          title={item.description || undefined}
+                          style={{
+                            borderColor: item.kind === "model" ? hue.fg : "var(--border-soft)",
+                            opacity: item.restricted ? 0.55 : 1,
+                          }}
+                          title={
+                            item.kind === "model"
+                              ? `Ferdig joinet dataprodukt – det er dette teamet bestiller.\n\n${item.description}`
+                              : item.restricted
+                                ? `Gis normalt ikke ut alene.\n\n${item.description}`
+                                : item.description || undefined
+                          }
                         >
+                          {item.kind === "model" && <span aria-hidden="true">▸ </span>}
                           {item.name}
                           <span className="ml-1" style={{ color: "var(--text-muted)" }}>
                             {item.columnCount}
