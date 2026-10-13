@@ -17,10 +17,10 @@ export type DbtSource = {
   /** A dbt `source`, or a `model` dbt files under `data-products`. */
   kind: "source" | "model";
   /**
-   * dbt says this table is not handed out on its own — the data is ordered through a joined
-   * dataprodukt instead. Only a handful of source tables carry the note (KPR-KUHR's three, and
-   * sykehusepj.data_kode), and it is dbt's own wording, not an inference from the shape of the
-   * table: for most registers the source IS what a team orders.
+   * A building block, not something a team orders on its own. Set when dbt's description says
+   * so (KPR-KUHR's three, sykehusepj.data_kode), for NPR's landing schema, and for any source
+   * table in a register that has data-products when no team view reads it directly. For
+   * registers without data-products (lab, LMR, MSIS, Risikogrupper) the source IS the product.
    */
   restricted: boolean;
   register: string;
@@ -49,6 +49,7 @@ export type DbtSource = {
  * preliminary, while `diagnoserarsak_scd2` has one and is a dataprodukt.
  */
 const DATA_PRODUCTS = "data-products";
+const TEAM_VIEWS = "team-views";
 
 /** dbt's standing phrase for a table that is only reachable through a joined dataprodukt. */
 const RESTRICTED =
@@ -197,6 +198,25 @@ export function loadDbt(): void {
         registerDescription: "",
         columns: merged,
       });
+    }
+
+    // A register that has data-products is ordered through them. Its source tables are then
+    // building blocks — SykehusEPJ's normalised Data_Pasient, Data_Tjeneste … — unless a team
+    // view reads the table directly, which is dbt's own record that it was handed out
+    // (folkeregisteret.person, sysvak.hendelser, sykehusepj.data_enhet). Team views are read
+    // for that one fact only; they are still not served.
+    const orderedDirectly = new Set<string>();
+    for (const node of Object.values<any>(manifest.nodes ?? {})) {
+      if (node?.resource_type !== "model" || node?.fqn?.[2] !== TEAM_VIEWS) continue;
+      for (const dep of node.depends_on?.nodes ?? []) orderedDirectly.add(dep);
+    }
+    const registersWithProducts = new Set(
+      [...sources.values()].filter((s) => s.kind === "model").map((s) => s.register.toLowerCase()),
+    );
+    for (const s of sources.values()) {
+      if (s.kind === "source" && registersWithProducts.has(s.register.toLowerCase()) && !orderedDirectly.has(s.id)) {
+        s.restricted = true;
+      }
     }
   } catch (err) {
     loadError =
