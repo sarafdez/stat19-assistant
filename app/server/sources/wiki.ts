@@ -39,6 +39,8 @@ type Page = {
   title: string;
   breadcrumb: string[];
   headings: string;
+  /** Level 1–3 headings as plain text, for the outline the system prompt shows of source pages. */
+  outline: string[];
   body: string;
 };
 
@@ -95,6 +97,9 @@ export function loadWiki(): void {
       title: prettify(path.basename(id)),
       breadcrumb: path.dirname(id) === "." ? [] : path.dirname(id).split(path.sep).map(prettify),
       headings: [...text.matchAll(/^#{1,4}\s+(.+)$/gm)].map((m) => m[1]).join(" · "),
+      outline: [...text.matchAll(/^#{1,3}\s+(.+)$/gm)]
+        .map((m) => m[1].replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").trim())
+        .filter(Boolean),
       body: text,
     });
   }
@@ -199,6 +204,11 @@ export function listWikiPages(): WikiEntry[] {
     .sort((a, b) => a.section.localeCompare(b.section, "nb") || a.title.localeCompare(b.title, "nb"));
 }
 
+/** A page's level 1–3 headings, links reduced to their text. Empty for an unknown page. */
+export function wikiOutline(id: string): string[] {
+  return pages.get(id)?.outline ?? [];
+}
+
 export function wikiStats() {
   return { pages: pages.size, error: loadError };
 }
@@ -229,12 +239,21 @@ const ALWAYS = /begrensning|dekning|kvalitet|viktig|oppdater|periode|historikk/i
 const COVERAGE =
   /tilbake til \d|tilbake fra \d|fra og med \d|siden \d|t\.o\.m\.|leveres data fra|periode \d{4}|data fra \d{4}|fra \d{1,2}\.\d{1,2}\.\d{4}|pr\.\s*\S+\s+har vi|tilgjengelige fra/i;
 
-type Section = { index: number; level: number; heading: string | null; text: string };
+type Section = {
+  index: number;
+  level: number;
+  heading: string | null;
+  text: string;
+  /** Character offsets into the page markdown, so a cut page can say which sections it lost. */
+  start: number;
+  end: number;
+};
 
 function splitSections(markdown: string): Section[] {
   const lines = markdown.split("\n");
   const sections: Section[] = [];
-  let current: Section = { index: 0, level: 0, heading: null, text: "" };
+  let current: Section = { index: 0, level: 0, heading: null, text: "", start: 0, end: 0 };
+  let offset = 0;
   for (const line of lines) {
     const match = /^(#{1,4})\s+(.+?)\s*$/.exec(line);
     if (match) {
@@ -244,10 +263,14 @@ function splitSections(markdown: string): Section[] {
         level: match[1].length,
         heading: match[2].replace(/<[^>]+>/g, "").trim(),
         text: "",
+        start: offset,
+        end: offset,
       };
     } else {
       current.text += line + "\n";
     }
+    offset += line.length + 1;
+    current.end = Math.min(offset, markdown.length);
   }
   if (current.text.trim() || current.heading) sections.push(current);
   return sections.map((sec, i) => ({ ...sec, index: i + 1 }));
@@ -275,6 +298,8 @@ export type PageRead = {
   mode: "hel side" | "utdrag";
   returned: number;
   total: number;
+  /** True when a whole-page read hit FULL_PAGE_CAP; the text then says which sections are missing. */
+  truncated: boolean;
   text: string;
 };
 
@@ -287,14 +312,46 @@ export function readWikiPageForModel(
   const header = `${page.title} (${page.breadcrumb.join(" / ") || "rot"}) — ${page.id}`;
   const all = splitSections(page.markdown);
 
-  const whole = (why: PageRead["mode"]): PageRead => ({
-    id: page.id,
-    title: page.title,
-    mode: why,
-    returned: all.length,
-    total: all.length,
-    text: `${header}\n\n${page.markdown.slice(0, FULL_PAGE_CAP)}`,
-  });
+  const whole = (why: PageRead["mode"]): PageRead => {
+    if (page.markdown.length <= FULL_PAGE_CAP) {
+      return {
+        id: page.id,
+        title: page.title,
+        mode: why,
+        returned: all.length,
+        total: all.length,
+        truncated: false,
+        text: `${header}\n\n${page.markdown}`,
+      };
+    }
+    // Past the cap the page used to be sliced in silence, so the model read 60% of a 100k
+    // protocol and took it for the whole. Say where the cut fell and how to reach the rest:
+    // a section that is cut or missing is still reachable one at a time with sections=[…].
+    const lost = all.filter((sec) => sec.end > FULL_PAGE_CAP);
+    const kept = all.length - lost.length;
+    const label = (sec: Section) =>
+      `${sec.index} ${(sec.heading ?? "(innledning)").replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")}`;
+    const notice =
+      `AVKORTET: siden er ${size(page.markdown.length)}, og bare de første ${size(FULL_PAGE_CAP)} er med ` +
+      `(${kept} av ${all.length} avsnitt hele). ` +
+      (lost.length && all.length > 1
+        ? `Avsnitt som mangler helt eller delvis: ${lost.map(label).join(" · ")}. ` +
+          `Hent dem med sections=[${lost
+            .slice(0, 3)
+            .map((sec) => `"${sec.index}"`)
+            .join(", ")}${lost.length > 3 ? ", …" : ""}]. `
+        : "Resten av siden kan ikke hentes med dette verktøyet. ") +
+      `Ikke konkluder med at noe mangler på siden ut fra denne teksten.`;
+    return {
+      id: page.id,
+      title: page.title,
+      mode: why,
+      returned: kept,
+      total: all.length,
+      truncated: true,
+      text: `${header}\n${notice}\n\n${page.markdown.slice(0, FULL_PAGE_CAP)}\n\n[… ${notice}]`,
+    };
+  };
 
   if (opts.full || page.markdown.length <= SMALL_PAGE || all.length <= 1) return whole("hel side");
 
@@ -360,6 +417,7 @@ export function readWikiPageForModel(
     id: page.id,
     title: page.title,
     mode: "utdrag",
+    truncated: false,
     returned: chosen.length,
     total: all.length,
     text:

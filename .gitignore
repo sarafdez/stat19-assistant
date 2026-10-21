@@ -8,6 +8,9 @@ dbt
 prosjekter/*
 !prosjekter/.gitkeep
 
+# Tool-call log: no wiki or dbt text, but the queries say what a team is working on.
+logs
+
 # Secrets
 .env
 .env.local

@@ -67,6 +67,7 @@ Metadata only, no person-level data. Everything can then be read and tested loca
 | `app/build-client.mjs` | builds the client without Vite, for machines where esbuild is blocked |
 | `README.md` / `SNAPSHOTS.md` | user-facing docs, in English — setup and how to obtain the two snapshots |
 | `prosjekter/` | working files — protocol drafts land here |
+| `logs/` | `tool-calls.jsonl`: one line per tool call the app makes (git-ignored) |
 | `Stat19.wiki/` | the wiki clone (git-ignored, fetched by setup) |
 | `dbt/` | the dbt export (git-ignored, fetched by setup) |
 
@@ -85,7 +86,7 @@ for pages instead of guessing paths, and quote them in shell. Never edit inside 
 (it's a clone; edits collide with the next pull); working files go in `prosjekter/`.
 
 **This repo is public.** No person-level data in this folder, and never commit `Stat19.wiki`,
-`dbt`, `prosjekter/` or `.env` — they are git-ignored because they hold internal FHI material.
+`dbt`, `prosjekter/`, `logs/` or `.env` — they are git-ignored because they hold internal FHI material.
 Don't add absolute local paths to committed files (use the `STAT19_*_DIR` overrides). User-facing docs
 (`README.md`, `SNAPSHOTS.md`) are in English; `regler.md` and the app's own UI stay in bokmål.
 

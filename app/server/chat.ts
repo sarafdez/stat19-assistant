@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
@@ -7,6 +8,7 @@ import { buildSystem } from "./prompt.ts";
 import { getDbtSource, listDbtSources, searchDbtDetailed } from "./sources/dbt.ts";
 import { getWikiPage, listWikiPages, readWikiPageForModel, searchWikiDetailed } from "./sources/wiki.ts";
 import { getStatus } from "./status.ts";
+import { logToolCall } from "./toollog.ts";
 
 export type Attachment =
   | { kind: "pdf"; name: string; base64: string }
@@ -174,7 +176,10 @@ function tools(emit: ChatSink) {
         emit({
           type: "tool",
           tool: "read_wiki_page",
-          query: read.mode === "utdrag" ? `${read.title} (${read.returned}/${read.total} avsnitt)` : read.title,
+          query:
+            read.mode === "utdrag" || read.truncated
+              ? `${read.title} (${read.returned}/${read.total} avsnitt${read.truncated ? ", avkortet" : ""})`
+              : read.title,
         });
         reveal("wiki", { id: read.id, title: read.title });
         return read.text;
@@ -392,19 +397,40 @@ export async function streamChat(
     { role: "user", content: userContent(message, attachments) },
   ];
 
+  // Every tool event also goes to the tool log, tagged with the round that asked for it. Tools
+  // run between two model calls, so the round is simply how many calls have streamed so far.
+  const request = randomUUID().slice(0, 8);
+  let round = 0;
+  const logged: ChatSink = (event) => {
+    if (event.type === "tool") {
+      logToolCall({
+        ts: new Date().toISOString(),
+        request,
+        conversation: conversationId ?? null,
+        model: model.id,
+        round,
+        tool: event.tool,
+        query: event.query,
+        ...(event.count !== undefined ? { count: event.count } : {}),
+      });
+    }
+    emit(event);
+  };
+
   try {
     const runner = anthropic().beta.messages.toolRunner({
       model: model.id,
       max_tokens: 32_000,
       system: buildSystem(status),
       ...modelParams(model, effort),
-      tools: tools(emit),
+      tools: tools(logged),
       messages,
       max_iterations: 24,
       stream: true,
     }, { signal });
 
     for await (const stream of runner) {
+      round += 1;
       stream.on("text", (delta) => emit({ type: "text", delta }));
       stream.on("thinking", (delta) => emit({ type: "thinking", delta }));
       const message = await stream.finalMessage();

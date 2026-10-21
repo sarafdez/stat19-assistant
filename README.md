@@ -102,6 +102,7 @@ Edit **[`regler.md`](regler.md)**, not the code — it holds the domain rules, a
 | [`SNAPSHOTS.md`](SNAPSHOTS.md) | how to get the wiki and dbt data |
 | [`app/README.md`](app/README.md) | how the app works: tools, costs, retrieval |
 | `prosjekter/` | your working files; drafts are saved here |
+| `logs/` | the tool-call log (see [`app/README.md`](app/README.md)) |
 
 ## Licence
 
@@ -109,5 +110,5 @@ Edit **[`regler.md`](regler.md)**, not the code — it holds the domain rules, a
 
 ## Never commit
 
-`Stat19.wiki`, `dbt`, `prosjekter/` and `.env` are git-ignored — **this repo is public** and that
+`Stat19.wiki`, `dbt`, `prosjekter/`, `logs/` and `.env` are git-ignored — **this repo is public** and that
 material is internal. Check `git status --short` before pushing.

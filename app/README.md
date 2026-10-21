@@ -82,17 +82,29 @@ descriptions — when and why the model looks something up — are in `server/ch
 
 ### What is sent to the model
 
-System prompt (~5 000 tokens estimated: `regler.md` + `APP_RULES`, the catalogue of all 45
-dataprodukter, the snapshot dates) + the conversation history + your message + any attachments.
-Wiki pages and column lists are sent only when the model actually calls a tool.
+System prompt: `regler.md` + `APP_RULES`, the id of every wiki page (the source pages under
+`Dataprodukter-i-Stat19/` also with their headings), the catalogue of all dataprodukter with the
+first line of each dbt description, and the snapshot dates. Then the conversation history, your
+message and any attachments. Wiki page text and column lists are sent only when the model actually
+calls a tool. The page list and catalogue are counted from the snapshot on every request, so a
+`git pull` or a new dbt export shows up without a restart of anything but the server.
 
 `read_wiki_page` returns **excerpts** of large pages: the sections matching the model's `query`,
 always the introduction and any section on limitations or coverage, plus a table of contents the
-model can order more from (`sections`) or fetch whole (`full=true`). That typically cuts 60 % of
-the characters — SykehusEPJ.md alone goes from 23 800 to ~5 500. Pages under 4 000 characters are
-sent whole. The panels in the UI still show complete pages; the excerpting applies only to what is
-sent to the model. Nothing else in the folder is read. Token usage for the last answer is shown
-under the input box.
+model can order more from (`sections`) or fetch whole (`full=true`). Pages up to 8 000 characters
+are sent whole. A whole-page read stops at 60 000 characters; when that happens the text says so
+and lists the sections that were cut, so the model fetches them with `sections` instead of
+assuming the page ended there. The panels in the UI still show complete pages; the excerpting
+applies only to what is sent to the model. Nothing else in the folder is read. Token usage for the
+last answer is shown under the input box.
+
+### Tool log
+
+Every tool call is appended as one JSON line to `logs/tool-calls.jsonl` (git-ignored): the tool,
+the query or page id the model sent, the hit count, and which round of the loop asked for it. It
+records the trail, never your message, the answer or any wiki or dbt text. Use it to see how the
+assistant actually works — e.g. whether it reads the wiki before dbt, or searches for pages it
+could have opened directly. Turn it off with `STAT19_TOOL_LOG=off` in `.env`.
 
 ## Files
 
@@ -103,7 +115,8 @@ under the input box.
 | `server/status.ts` | freshness: `git log -1` for the wiki, `generated_at` for dbt |
 | `server/paths.ts` | resolves the repo root and both snapshot locations, incl. `STAT19_*_DIR` overrides |
 | `server/env.ts` | loads `../.env` before the SDK reads the key (imported first in `index.ts`) |
-| `server/prompt.ts` | system prompt: reads `../regler.md`, adds `APP_RULES` + a compact catalogue of all dataprodukter |
+| `server/prompt.ts` | system prompt: reads `../regler.md`, adds `APP_RULES`, the wiki page list (source pages with headings) and a compact catalogue of all dataprodukter |
+| `server/toollog.ts` | appends one line per tool call to `../logs/tool-calls.jsonl` |
 | `server/models.ts` | model choice (Opus 5 / Sonnet 5 / Haiku 4.5) and which parameters each model accepts |
 | `server/chat.ts` | tool loop (`toolRunner`, streaming), emitting transport-agnostic `ChatEvent`s |
 | `server/cli.ts` | the command-line surface: same `streamChat`, printing to stdout/stderr |
@@ -225,5 +238,5 @@ still misses.
 
 - No personal data here — wiki text, metadata and protocol drafts only.
 - The app never writes inside the wiki clone (it is a clone; edits collide with the next pull).
-- `.env`, `Stat19.wiki`, `dbt` and `prosjekter/` are git-ignored — never commit them.
+- `.env`, `Stat19.wiki`, `dbt`, `prosjekter/` and `logs/` are git-ignored — never commit them.
 - No database access: row counts and load logs must be checked inside the analysis room.

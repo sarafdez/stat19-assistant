@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { RULES_FILE } from "./paths.ts";
 import { listDbtSources } from "./sources/dbt.ts";
-import { listWikiPages } from "./sources/wiki.ts";
+import { listWikiPages, wikiOutline } from "./sources/wiki.ts";
 import type { SnapshotStatus } from "./status.ts";
 
 /**
@@ -102,16 +102,26 @@ export function rulesStatus(): { ok: boolean; error: string | null; chars: numbe
  * merely repeats a term could outrank the source page that documents it.
  *
  * Regenerated on every request from the loaded snapshot, so a wiki pull shows up immediately.
- * Ids only: they are readable, and they are what read_wiki_page needs. Adding titles as well
- * would roughly double the cost for very little the id does not already say.
+ * Ids only for most pages: they are readable, and they are what read_wiki_page needs.
+ *
+ * The source pages (Dataprodukter-i-Stat19/) also get their headings. regler.md makes them the
+ * starting point for every question, and a bare id like `Rapporter.md` says nothing about which
+ * dataprodukter or limitations the page documents — so the model picked them by file name and
+ * fell back on keyword ranking. Their headings are a few thousand characters in all; headings
+ * for every page would be many times that, mostly the protocol template repeated per team.
+ * Headings show where something is written, not what it says, so the page must still be read.
  */
+const SOURCE_PAGES = "Dataprodukter-i-Stat19";
+
 function wikiIndex(): string {
   const pages = listWikiPages();
   if (!pages.length) return "Ingen wiki-sider er lastet — si at wiki-klonen mangler.";
   const bySection = new Map<string, string[]>();
   for (const page of pages) {
     const section = page.breadcrumb[0] ?? "(rot)";
-    bySection.set(section, [...(bySection.get(section) ?? []), page.id]);
+    const outline = page.id.startsWith(SOURCE_PAGES) ? wikiOutline(page.id) : [];
+    const line = outline.length ? `${page.id} — ${outline.join(" · ")}` : page.id;
+    bySection.set(section, [...(bySection.get(section) ?? []), line]);
   }
   return [...bySection.entries()]
     .map(([section, ids]) => `${section}:\n  ${ids.join("\n  ")}`)
@@ -151,7 +161,9 @@ export function buildSystem(status: SnapshotStatus): Array<{
       text:
         `ALLE WIKI-SIDER (${listWikiPages().length} sider i snapshotet). Vet du hvilken side du ` +
         `trenger, kall read_wiki_page direkte med id-en herfra – du behøver ikke søke først. ` +
-        `search_wiki er for når du IKKE vet hvilken side det er.\n${wikiIndex()}`,
+        `search_wiki er for når du IKKE vet hvilken side det er. Kildesidene under ` +
+        `${SOURCE_PAGES} står med overskriftene sine etter «—»: de viser hvor noe står, ikke hva ` +
+        `som står der. Les siden før du oppgir dekningsperiode, begrensninger eller innhold.\n${wikiIndex()}`,
     },
     {
       type: "text",
